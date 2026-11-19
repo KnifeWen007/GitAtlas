@@ -116,10 +116,31 @@ run('server', 'node', ['--watch', 'packages/server/src/main.ts'], {
   LOG_LEVEL: process.env.LOG_LEVEL ?? 'warn',
 });
 
-run('vite', 'pnpm', ['--filter', '@gitatlas/web', 'run', 'dev'], {
-  ATLAS_API_PORT: String(SERVER_PORT),
-  ATLAS_WEB_PORT: String(VITE_PORT),
-});
+// Vite 直接用它自己的可执行文件，不经过 pnpm：
+// 用 npm 或者直接 node scripts/dev-desktop.mjs 也能跑起来
+const viteBin = path.join(
+  root,
+  'apps',
+  'web',
+  'node_modules',
+  '.bin',
+  process.platform === 'win32' ? 'vite.cmd' : 'vite',
+);
+if (!fs.existsSync(viteBin)) {
+  console.log(`没找到 Vite：${viteBin}\n先跑一次依赖安装（pnpm install 或 npm install）。`);
+  process.exit(1);
+}
+
+run(
+  'vite',
+  viteBin,
+  [],
+  {
+    ATLAS_API_PORT: String(SERVER_PORT),
+    ATLAS_WEB_PORT: String(VITE_PORT),
+  },
+  { cwd: path.join(root, 'apps', 'web') },
+);
 
 if (!(await waitFor(`${API_URL}/api/health`, '接口服务'))) {
   console.log('接口没起来，先看看上面的报错。');
@@ -128,7 +149,7 @@ if (!(await waitFor(`${API_URL}/api/health`, '接口服务'))) {
   console.log('Vite 没起来，先看看上面的报错。');
   shutdown(1);
 } else {
-  // 直接起 electron.exe：经 pnpm 转发时环境变量会被再带回去，
+  // 直接起 electron.exe：经 pnpm/npm 转发时环境变量会被再带回去，
   // 一旦 ELECTRON_RUN_AS_NODE 漏进来，Electron 会当普通 Node 跑并立刻退出。
   const electronExe = path.join(
     root,
