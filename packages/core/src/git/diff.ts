@@ -136,6 +136,10 @@ async function untrackedDiff(root: string, filePath: string): Promise<FileDiff> 
   let content: string;
   try {
     const stat = await fs.stat(absolute);
+    if (stat.isDirectory()) {
+      diff.note = '这是一个目录，展开到具体文件才能看差异';
+      return diff;
+    }
     if (stat.size > MAX_BYTES) {
       diff.note = `文件太大（${Math.round(stat.size / 1024)} KB），只显示前 ${MAX_LINES} 行`;
       content = (await fs.readFile(absolute, 'utf8')).slice(0, MAX_BYTES);

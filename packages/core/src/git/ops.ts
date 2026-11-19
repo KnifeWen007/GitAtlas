@@ -64,10 +64,13 @@ function splitXY(xy: string): { index: string; worktree: string } {
  *
  * 用 porcelain=v2 -z：机器可读、路径不受空格/中文影响，
  * 比解析人类可读的 `git status` 稳定得多。
+ *
+ * `-uall` 必须加：默认会把未跟踪目录折叠成 `notes/` 一条，
+ * 界面上点它看差异时根本读不出文件内容。
  */
 export async function getStatus(gitPath: string | undefined, repoPath: string): Promise<RepoStatus> {
   const reader = makeReader(gitPath, repoPath);
-  const out = await reader.run(['status', '--porcelain=v2', '--branch', '-z']);
+  const out = await reader.run(['status', '--porcelain=v2', '--branch', '--untracked-files=all', '-z']);
   const entries = out.split('\0');
 
   let branch: string | null = null;
