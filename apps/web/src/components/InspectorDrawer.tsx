@@ -223,7 +223,8 @@ export function InspectorDrawer({ repoId, repoPath, target, onClose, onGit, onRe
               <span className="minus">−{diff.removed}</span>
             </span>
           ) : null}
-          {desktop ? (
+          {/* 跳转只对工作区/冲突文件有意义：提交里的 heading 是提交说明，不是路径 */}
+          {desktop && target.kind !== 'commit' ? (
             <>
               <button className="btn btn-sm btn-ghost" onClick={() => void jump('open')} title="用系统默认程序打开这个文件">
                 用默认程序打开
