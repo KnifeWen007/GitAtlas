@@ -96,7 +96,7 @@ docs/              方案、架构、交互规格、问题规则、账号与部�
 
 | 环节 | 结果 |
 | --- | --- |
-| 索引 | eviacam 817 提交 / 1.6s；img2threejs 368 提交 / 1.1s；GitAtlas-Demo 30 提交 |
+| 索引 | eviacam 817 提交 / 1.6s；img2threejs 368 提交 / 1.1s；GitAtlas-Demo 32 提交 / 1.3s |
 | API | health · repos · timeline · refs · commits · graph · status · snapshots · git actions · reindex · tasks |
 | 界面 | 摘要卡、自适应热力图、SVG 提交图谱、分支与标签、最近提交、可视化操作台 |
 | 操作 | 获取远端、拉取、推送、切换/新建/合并/删除分支、打标签、暂存、提交、冲突选边、回滚点 |

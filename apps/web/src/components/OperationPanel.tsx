@@ -58,6 +58,18 @@ function formatTime(iso: string): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
+/**
+ * 快照名形如 2026-11-19T07-19-00.976Z —— 冒号被换成横线，毫秒分隔符可能是点也可能是横线，
+ * 直接交给 Date 会解析失败，所以按位拆出来再拼成合法 ISO。
+ */
+function snapshotTime(name: string): string {
+  const matched = /^(\d{4})-(\d{2})-(\d{2})T(\d{2})-(\d{2})-(\d{2})(?:[.-](\d{1,3}))?Z$/.exec(name);
+  if (!matched) return name;
+  const [, year, month, day, hour, minute, second, ms] = matched;
+  const fraction = (ms ?? '0').padEnd(3, '0');
+  return formatTime(`${year}-${month}-${day}T${hour}:${minute}:${second}.${fraction}Z`);
+}
+
 export function OperationPanel({
   status,
   branches,
@@ -364,8 +376,10 @@ export function OperationPanel({
             </div>
             {snapshots.slice(0, 5).map((snapshot) => (
               <div className="op-file" key={snapshot.ref}>
-                <code className="op-code k-staged">{snapshot.sha.slice(0, 7)}</code>
-                <span className="op-path">{formatTime(snapshot.createdAt)}</span>
+                <code className="op-code sha">{snapshot.sha.slice(0, 7)}</code>
+                <span className="op-path" title={`快照 ${snapshot.name}`}>
+                  备份于 {snapshotTime(snapshot.name)}
+                </span>
                 <div className="op-file-actions">
                   <button
                     className="btn btn-xs btn-ghost"
