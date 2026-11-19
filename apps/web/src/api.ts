@@ -131,6 +131,60 @@ export interface GraphResponse {
   truncated: boolean;
 }
 
+export type ChangeKind = 'modified' | 'added' | 'deleted' | 'renamed' | 'untracked' | 'conflict';
+
+export interface WorkingFile {
+  path: string;
+  kind: ChangeKind;
+  code: string;
+}
+
+export interface RepoStatus {
+  branch: string | null;
+  detached: boolean;
+  headSha: string | null;
+  upstream: string | null;
+  ahead: number;
+  behind: number;
+  clean: boolean;
+  staged: WorkingFile[];
+  unstaged: WorkingFile[];
+  untracked: WorkingFile[];
+  conflicts: WorkingFile[];
+  operation: 'merge' | 'rebase' | 'cherry-pick' | 'revert' | null;
+  remoteUrl: string | null;
+  stashCount: number;
+}
+
+export interface OpResult {
+  ok: boolean;
+  message: string;
+  conflicts?: WorkingFile[];
+  snapshot?: string;
+  taskId?: string;
+  stderr?: string;
+}
+
+export interface SnapshotEntry {
+  ref: string;
+  name: string;
+  sha: string;
+  createdAt: string;
+}
+
+export interface GitActionBody {
+  action: string;
+  branch?: string;
+  name?: string;
+  target?: string;
+  path?: string;
+  paths?: string[];
+  side?: 'ours' | 'theirs';
+  force?: boolean;
+  message?: string;
+  ref?: string;
+}
+
 export type IndexPhase = 'validating' | 'refs' | 'commits' | 'aggregating' | 'done' | 'failed';
 export interface IndexProgress {
   phase: IndexPhase;
@@ -188,6 +242,10 @@ export const api = {
   refs: (id: number) => request<RefRecord[]>(`/api/repos/${id}/refs`),
   commits: (id: number, limit = 40) => request<CommitListItem[]>(`/api/repos/${id}/commits?limit=${limit}`),
   graph: (id: number, limit = 240) => request<GraphResponse>(`/api/repos/${id}/graph?limit=${limit}`),
+  status: (id: number) => request<RepoStatus>(`/api/repos/${id}/status`),
+  snapshots: (id: number) => request<SnapshotEntry[]>(`/api/repos/${id}/snapshots`),
+  git: (id: number, body: GitActionBody) =>
+    request<OpResult>(`/api/repos/${id}/git`, { method: 'POST', body: JSON.stringify(body) }),
   reindex: (id: number) => request<{ taskId: string }>(`/api/repos/${id}/reindex`, { method: 'POST' }),
   remove: (id: number) => request<{ ok: boolean }>(`/api/repos/${id}`, { method: 'DELETE' }),
   task: (id: string) => request<TaskResponse>(`/api/tasks/${id}`),

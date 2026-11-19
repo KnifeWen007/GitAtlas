@@ -27,3 +27,33 @@ export {
 export type { CommitListItem } from './analytics/queries.ts';
 export { getGraph } from './analytics/graph.ts';
 export type { GraphCommit, GraphRef, GraphResponse } from './analytics/graph.ts';
+export {
+  getStatus,
+  createSnapshot,
+  listSnapshots,
+  fetchRepo,
+  pullRepo,
+  pushRepo,
+  checkoutBranch,
+  createBranch,
+  deleteBranch,
+  mergeBranch,
+  abortMerge,
+  resolveConflict,
+  concludeMerge,
+  createTag,
+  resetHard,
+  restoreSnapshot,
+  stagePaths,
+  unstagePaths,
+  discardPaths,
+  commitAll,
+} from './git/ops.ts';
+export type {
+  RepoStatus,
+  RepoOperation,
+  WorkingFile,
+  ChangeKind,
+  OpResult,
+  SnapshotEntry,
+} from './git/ops.ts';

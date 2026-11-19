@@ -52,6 +52,23 @@ pnpm build:desktop       # 出便携版 + 安装包，产物在 release/
 > 打包脚本必须在**真 Node.js** 里跑：Electron 自带的 node 读 app.asar 会报 ENOENT。
 > `scripts/build-desktop.mjs` 会自动换成真 node 重跑，无需手工处理。
 
+## 官方仓库与演示仓库
+
+| 仓库 | 用途 | 地址 |
+| --- | --- | --- |
+| **GitAtlas** | 主仓库，保存产品源码、桌面端和文档 | [github.com/KnifeWen007/GitAtlas](https://github.com/KnifeWen007/GitAtlas) |
+| **GitAtlas-Demo** | 官方演示仓库，专门提供分支、合并、标签和冲突样例 | [github.com/KnifeWen007/GitAtlas-Demo](https://github.com/KnifeWen007/GitAtlas-Demo) |
+
+演示仓库的本地路径是 `F:\Projects\GitAtlas-Demo`。把它添加到 GitAtlas 后，可以直接看到：
+
+- `main` 主线和多条已经合并的功能分支
+- `feature/mobile-layout` 未合并的开发链
+- `demo/conflict-playground` 冲突演示分支
+- `v0.1.0`、`v0.2.0`、`v0.3.0-demo` 和 `demo/graph-ready` 等标签
+- 操作台中的分支切换、合并、暂存、提交、标签和回滚点
+
+这两个本地仓库已经分别配置了对应的 `origin` 地址；远程内容由仓库所有者自行推送和维护。
+
 ## 目录
 
 ```
@@ -75,23 +92,25 @@ docs/              方案、架构、交互规格、问题规则、账号与部�
 
 ## 状态
 
-**P0 完成（2026-11-19）**，已在真实仓库上端到端验证：
+**桌面端、提交图谱和操作台已完成（2026-11-19）**，已经在真实仓库和专用演示仓库上端到端验证：
 
 | 环节 | 结果 |
 | --- | --- |
-| 索引 | eviacam 817 提交 / 1.6s；img2threejs 368 提交 / 1.1s |
-| API | health · repos · timeline · refs · commits · reindex · tasks |
-| 界面 | 摘要卡、自适应热力图、分支与标签（含远端折叠）、最近提交 |
-| 质量 | core / server / web 三个包 `tsc --noEmit` 全绿 |
+| 索引 | eviacam 817 提交 / 1.6s；img2threejs 368 提交 / 1.1s；GitAtlas-Demo 30 提交 |
+| API | health · repos · timeline · refs · commits · graph · status · snapshots · git actions · reindex · tasks |
+| 界面 | 摘要卡、自适应热力图、SVG 提交图谱、分支与标签、最近提交、可视化操作台 |
+| 操作 | 获取远端、拉取、推送、切换/新建/合并/删除分支、打标签、暂存、提交、冲突选边、回滚点 |
+| 桌面 | Electron 便携版 + 安装版；原生目录选择；内嵌 Fastify；随机本地端口 |
+| 质量 | core / server / web 三个包 `tsc --noEmit` 全绿；写操作 HTTP 端到端测试通过 |
 
-### 已知缺口（按优先级）
+### 下一步缺口（按优先级）
 
 1. **增量索引**：目前每次重建全量数据，5 万提交以上会慢（P1）
-2. **DAG 拓扑图**：尚未开始，这是最有辨识度的一屏（P1）
-3. **问题雷达**：规则引擎未实现，`problem-rules.md` 只有设计（P2）
-4. **写操作**：fetch/merge/冲突解决器全未开始（P3）
-5. **桌面壳与打包**：未开始（P4）
-6. **移动端**：未开始（P6）
+2. **问题雷达**：规则引擎未实现，`problem-rules.md` 仍是设计（P2）
+3. **提交详情**：点击图谱节点后展开文件改动、差异和作者信息（P2）
+4. **冲突编辑器**：目前支持保留本地/对方版本，暂未内置逐行编辑器（P2）
+5. **凭据与账号**：推送依赖系统已有 Git 凭据，账号管理与团队权限仍未接入（P5）
+6. **移动端**：移动端布局和 PWA 仍未发布（P6）
 7. 热力图跨度超过 2 年时需要横向滚动，后续应按周/月聚合
 
 ## 开发约定

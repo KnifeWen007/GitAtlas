@@ -50,8 +50,8 @@ export class GitReader {
     });
   }
 
-  /** 执行并收集全部 stdout；非零退出抛 GitError */
-  async run(args: string[]): Promise<string> {
+  /** 执行并收集全部 stdout；非零退出抛 GitError。传 timeoutMs 可防网络操作挂死窗口 */
+  async run(args: string[], timeoutMs?: number): Promise<string> {
     const child = this.spawnGit(args);
     const out: Buffer[] = [];
     const err: Buffer[] = [];
@@ -59,12 +59,30 @@ export class GitReader {
     child.stdout.on('data', (chunk: Buffer) => out.push(chunk));
     child.stderr.on('data', (chunk: Buffer) => err.push(chunk));
 
+    let timedOut = false;
+    const timer = timeoutMs
+      ? setTimeout(() => {
+          timedOut = true;
+          child.kill();
+        }, timeoutMs)
+      : undefined;
+
     const code = await new Promise<number | null>((resolve, reject) => {
       child.on('error', reject);
       child.on('close', resolve);
     });
+    if (timer) clearTimeout(timer);
 
     const stderr = Buffer.concat(err).toString('utf8');
+
+    if (timedOut) {
+      throw new GitError(
+        `git ${args.slice(0, 2).join(' ')} 超时（${Math.round((timeoutMs ?? 0) / 1000)} 秒）`,
+        null,
+        `超时：${stderr}`,
+      );
+    }
+
     if (code !== 0) {
       throw new GitError(
         `git ${args.slice(0, 2).join(' ')} 失败（退出码 ${code}）：${stderr.trim() || '无错误输出'}`,

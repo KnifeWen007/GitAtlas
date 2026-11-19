@@ -16,8 +16,53 @@ import {
   getGraph,
   probeGit,
   deleteRepo,
+  getStatus,
+  listSnapshots,
+  fetchRepo,
+  pullRepo,
+  pushRepo,
+  checkoutBranch,
+  createBranch,
+  deleteBranch,
+  mergeBranch,
+  abortMerge,
+  resolveConflict,
+  concludeMerge,
+  createTag,
+  resetHard,
+  restoreSnapshot,
+  stagePaths,
+  unstagePaths,
+  discardPaths,
+  commitAll,
   type IndexProgress,
+  type OpResult,
 } from '@gitatlas/core';
+
+/** 写操作参数缺失：区别于 git 自身的失败，前端要提示用户补输入 */
+class InvalidInput extends Error {}
+
+/** 这些操作会移动 HEAD，索引数据随之过期 */
+const HEAD_MOVING = new Set(['pull', 'merge', 'reset', 'restore', 'checkout', 'commit', 'concludeMerge']);
+
+function need(value: string | undefined, label: string): string {
+  const trimmed = value?.trim();
+  if (!trimmed) throw new InvalidInput(`请填写${label}`);
+  return trimmed;
+}
+
+export interface GitActionBody {
+  action: string;
+  branch?: string;
+  name?: string;
+  target?: string;
+  path?: string;
+  paths?: string[];
+  side?: 'ours' | 'theirs';
+  force?: boolean;
+  message?: string;
+  ref?: string;
+}
 
 export interface ServerOptions {
   /** SQLite 文件路径；':memory:' 用于测试 */
@@ -153,6 +198,53 @@ export async function startServer(options: ServerOptions): Promise<ServerHandle>
     return task;
   };
 
+  /** git 写操作的统一分发：前端只需要一个 POST 端点 */
+  const runAction = async (repoPath: string, body: GitActionBody): Promise<OpResult> => {
+    switch (body.action) {
+      case 'fetch':
+        return fetchRepo(gitPath, repoPath);
+      case 'pull':
+        return pullRepo(gitPath, repoPath);
+      case 'push':
+        return pushRepo(gitPath, repoPath);
+      case 'checkout':
+        return checkoutBranch(gitPath, repoPath, need(body.branch, '分支名'));
+      case 'createBranch':
+        return createBranch(gitPath, repoPath, need(body.name, '分支名'), body.target?.trim() || undefined);
+      case 'deleteBranch':
+        return deleteBranch(gitPath, repoPath, need(body.name, '分支名'), body.force === true);
+      case 'merge':
+        return mergeBranch(gitPath, repoPath, need(body.branch, '要合并的分支'));
+      case 'abortMerge':
+        return abortMerge(gitPath, repoPath);
+      case 'concludeMerge':
+        return concludeMerge(gitPath, repoPath, body.message?.trim() || undefined);
+      case 'resolveConflict':
+        return resolveConflict(
+          gitPath,
+          repoPath,
+          need(body.path, '冲突文件'),
+          body.side === 'theirs' ? 'theirs' : 'ours',
+        );
+      case 'tag':
+        return createTag(gitPath, repoPath, need(body.name, '标签名'), body.target?.trim() || undefined);
+      case 'reset':
+        return resetHard(gitPath, repoPath, need(body.target, '目标提交'));
+      case 'restore':
+        return restoreSnapshot(gitPath, repoPath, need(body.ref, '回滚点'));
+      case 'stage':
+        return stagePaths(gitPath, repoPath, body.paths ?? []);
+      case 'unstage':
+        return unstagePaths(gitPath, repoPath, body.paths ?? []);
+      case 'discard':
+        return discardPaths(gitPath, repoPath, body.paths ?? []);
+      case 'commit':
+        return commitAll(gitPath, repoPath, need(body.message, '提交说明'));
+      default:
+        throw new InvalidInput(`不支持的操作：${body.action}`);
+    }
+  };
+
   app.get('/api/health', async () => {
     const git = await probeGit(gitPath);
     return {
@@ -230,6 +322,57 @@ export async function startServer(options: ServerOptions): Promise<ServerHandle>
       if (!Number.isFinite(id)) return reply.code(400).send({ error: 'id 无效' });
       const limit = Number(request.query.limit ?? 50);
       return getRecentCommits(store, id, Number.isFinite(limit) ? Math.min(Math.max(limit, 1), 500) : 50);
+    },
+  );
+
+  /** 同一仓库同时只允许一个写操作：连点会让 git 的 index.lock 打架 */
+  const busyRepos = new Set<number>();
+
+  app.get<{ Params: { id: string } }>('/api/repos/:id/status', async (request, reply) => {
+    const id = Number(request.params.id);
+    if (!Number.isFinite(id)) return reply.code(400).send({ error: 'id 无效' });
+    const repo = getRepo(store, id);
+    if (!repo) return reply.code(404).send({ error: '仓库不存在' });
+    try {
+      return await getStatus(gitPath, repo.path);
+    } catch (error) {
+      return reply.code(500).send({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  app.get<{ Params: { id: string } }>('/api/repos/:id/snapshots', async (request, reply) => {
+    const id = Number(request.params.id);
+    if (!Number.isFinite(id)) return reply.code(400).send({ error: 'id 无效' });
+    const repo = getRepo(store, id);
+    if (!repo) return reply.code(404).send({ error: '仓库不存在' });
+    return listSnapshots(gitPath, repo.path);
+  });
+
+  app.post<{ Params: { id: string }; Body: GitActionBody }>(
+    '/api/repos/:id/git',
+    async (request, reply) => {
+      const id = Number(request.params.id);
+      if (!Number.isFinite(id)) return reply.code(400).send({ error: 'id 无效' });
+      const repo = getRepo(store, id);
+      if (!repo) return reply.code(404).send({ error: '仓库不存在' });
+
+      const body = request.body ?? ({ action: '' } as GitActionBody);
+      if (busyRepos.has(id)) return reply.code(409).send({ error: '上一个操作还没结束，稍等一下' });
+
+      busyRepos.add(id);
+      try {
+        const result = await runAction(repo.path, body);
+        if (result.ok && HEAD_MOVING.has(body.action)) {
+          const task = startIndex(repo.path);
+          return { ...result, taskId: task.id };
+        }
+        return result;
+      } catch (error) {
+        if (error instanceof InvalidInput) return reply.code(400).send({ error: error.message });
+        return reply.code(500).send({ error: error instanceof Error ? error.message : String(error) });
+      } finally {
+        busyRepos.delete(id);
+      }
     },
   );
 

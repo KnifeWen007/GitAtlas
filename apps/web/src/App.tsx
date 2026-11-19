@@ -2,11 +2,14 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   api,
   type CommitListItem,
+  type GitActionBody,
   type GraphResponse,
   type HealthResponse,
   type RefRecord,
   type RepoRecord,
+  type RepoStatus,
   type RepoSummary,
+  type SnapshotEntry,
   type TaskResponse,
   type TimelineResponse,
 } from './api.ts';
@@ -14,6 +17,7 @@ import { AddRepoDialog } from './components/AddRepoDialog.tsx';
 import { CommitList } from './components/CommitList.tsx';
 import { GraphView } from './components/GraphView.tsx';
 import { Heatmap, HeatmapLegend } from './components/Heatmap.tsx';
+import { OperationPanel } from './components/OperationPanel.tsx';
 import { RefList } from './components/RefList.tsx';
 import { StatCard } from './components/StatCard.tsx';
 import { formatDate, formatNumber, formatRelative } from './format.ts';
@@ -46,6 +50,12 @@ export function App() {
   const [afterTask, setAfterTask] = useState<'add' | 'reindex' | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
 
+  // 写操作相关
+  const [status, setStatus] = useState<RepoStatus | null>(null);
+  const [snapshots, setSnapshots] = useState<SnapshotEntry[]>([]);
+  const [opBusy, setOpBusy] = useState(false);
+  const [opMessage, setOpMessage] = useState<{ text: string; tone: 'ok' | 'err' } | null>(null);
+
   const refreshRepos = useCallback(async () => {
     const list = await api.repos();
     setRepos(list);
@@ -75,21 +85,28 @@ export function App() {
   useEffect(() => {
     if (selectedId === null) {
       setDetail(null);
+      setStatus(null);
+      setSnapshots([]);
       return;
     }
     let cancelled = false;
     setLoadingDetail(true);
     void (async () => {
       try {
-        const [summary, timeline, refs, commits, graph] = await Promise.all([
+        const [summary, timeline, refs, commits, graph, gitStatus, snapshotList] = await Promise.all([
           api.summary(selectedId),
           api.timeline(selectedId),
           api.refs(selectedId),
           api.commits(selectedId, 40),
           api.graph(selectedId, 240),
+          // 仓库状态读不到（目录被删、git 不可用）不该拖垮整个看板
+          api.status(selectedId).catch(() => null),
+          api.snapshots(selectedId).catch(() => [] as SnapshotEntry[]),
         ]);
         if (cancelled) return;
         setDetail({ summary, timeline, refs, commits, graph });
+        setStatus(gitStatus);
+        setSnapshots(snapshotList);
       } catch (error) {
         if (!cancelled) setGlobalError(toMessage(error));
       } finally {
@@ -181,6 +198,32 @@ export function App() {
       setGlobalError(toMessage(error));
       setBusy(false);
       setAfterTask(null);
+    }
+  };
+
+  /** 所有写操作都走这里：执行 → 提示 → 刷新（会移动 HEAD 的操作等索引跑完再刷新） */
+  const handleGit = async (body: GitActionBody) => {
+    if (selectedId === null || opBusy) return;
+    setOpBusy(true);
+    setOpMessage(null);
+    try {
+      const result = await api.git(selectedId, body);
+      const text = result.snapshot ? `${result.message}（已自动留回滚点）` : result.message;
+      setOpMessage({ text, tone: result.ok ? 'ok' : 'err' });
+
+      if (result.taskId) {
+        setBusy(true);
+        setTask(null);
+        setAfterTask('reindex');
+        setTaskId(result.taskId);
+      } else {
+        setReloadKey((key) => key + 1);
+      }
+    } catch (error) {
+      setOpMessage({ text: toMessage(error), tone: 'err' });
+      setReloadKey((key) => key + 1);
+    } finally {
+      setOpBusy(false);
     }
   };
 
@@ -278,6 +321,12 @@ export function App() {
             onReindex={() => void handleReindex()}
             onRemove={() => void handleRemove()}
             lastIndexed={activeRepo?.lastIndexedAt ?? detail.summary.lastIndexedAt}
+            status={status}
+            snapshots={snapshots}
+            opBusy={opBusy}
+            opMessage={opMessage}
+            onGit={(body) => void handleGit(body)}
+            onRefreshStatus={() => setReloadKey((key) => key + 1)}
           />
         )}
       </main>
@@ -306,9 +355,27 @@ interface RepoViewProps {
   lastIndexed: string | null;
   onReindex: () => void;
   onRemove: () => void;
+  status: RepoStatus | null;
+  snapshots: SnapshotEntry[];
+  opBusy: boolean;
+  opMessage: { text: string; tone: 'ok' | 'err' } | null;
+  onGit: (body: GitActionBody) => void;
+  onRefreshStatus: () => void;
 }
 
-function RepoView({ detail, busy, lastIndexed, onReindex, onRemove }: RepoViewProps) {
+function RepoView({
+  detail,
+  busy,
+  lastIndexed,
+  onReindex,
+  onRemove,
+  status,
+  snapshots,
+  opBusy,
+  opMessage,
+  onGit,
+  onRefreshStatus,
+}: RepoViewProps) {
   const { summary, timeline, refs, commits, graph } = detail;
   const totalChanges = summary.insertions + summary.deletions;
 
@@ -373,6 +440,16 @@ function RepoView({ detail, busy, lastIndexed, onReindex, onRemove }: RepoViewPr
           sub={`${formatNumber(timeline.totals.commits)} 提交 / ${formatNumber(totalChanges)} 行`}
         />
       </div>
+
+      <OperationPanel
+        status={status}
+        branches={refs}
+        snapshots={snapshots}
+        busy={opBusy || busy}
+        message={opMessage}
+        onRun={onGit}
+        onRefresh={onRefreshStatus}
+      />
 
       <div className="card">
         <div className="card-head">
