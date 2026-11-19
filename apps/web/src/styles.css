@@ -935,6 +935,274 @@ body {
   margin-top: 4px;
 }
 
+/* 文件行整体可点：点开看差异 */
+.op-file-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+.op-file-main:hover .op-path {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* ---------- 改动检查器 ---------- */
+
+.inspector {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(760px, 62vw);
+  display: flex;
+  flex-direction: column;
+  background: #0a1017;
+  border-left: 1px solid var(--border);
+  box-shadow: -24px 0 60px rgba(0, 0, 0, 0.55);
+  z-index: 70;
+}
+
+.inspector-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.inspector-titles {
+  min-width: 0;
+}
+
+.inspector-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text);
+  font-family: var(--mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inspector-sub {
+  margin-top: 3px;
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+
+.inspector-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+}
+
+.inspector-stat {
+  display: inline-flex;
+  gap: 6px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+}
+
+.inspector-stat .plus {
+  color: var(--green);
+}
+
+.inspector-stat .minus {
+  color: var(--red);
+}
+
+.inspector-files {
+  max-height: 38%;
+  overflow: auto;
+  border-bottom: 1px solid var(--border-soft);
+  padding: 6px 0;
+}
+
+.inspector-file {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 16px;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--text-dim);
+  cursor: pointer;
+  text-align: left;
+}
+
+.inspector-file:hover {
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.inspector-file.is-active {
+  background: rgba(34, 211, 238, 0.1);
+  color: var(--text);
+}
+
+.inspector-tag {
+  flex: 0 0 auto;
+  font-size: 10.5px;
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: rgba(148, 163, 184, 0.16);
+  color: var(--text-dim);
+}
+
+.inspector-tag.t-added {
+  color: var(--green);
+  background: rgba(52, 211, 153, 0.16);
+}
+
+.inspector-tag.t-deleted {
+  color: var(--red);
+  background: rgba(248, 113, 113, 0.16);
+}
+
+.inspector-tag.t-renamed,
+.inspector-tag.t-copied {
+  color: var(--violet);
+  background: rgba(167, 139, 250, 0.18);
+}
+
+.inspector-path {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.inspector-count {
+  flex: 0 0 auto;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.inspector-body {
+  flex: 1 1 auto;
+  overflow: auto;
+}
+
+.diff-body {
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.diff-note {
+  padding: 6px 16px;
+  font-size: 11.5px;
+  font-family: inherit;
+  color: var(--amber);
+  background: rgba(251, 191, 36, 0.08);
+  border-bottom: 1px solid rgba(251, 191, 36, 0.18);
+}
+
+.diff-lines {
+  min-width: 100%;
+  display: table;
+}
+
+.diff-line {
+  display: table-row;
+  line-height: 1.55;
+}
+
+.diff-line > span,
+.diff-line > code {
+  display: table-cell;
+  vertical-align: top;
+}
+
+.diff-no {
+  width: 46px;
+  padding: 0 8px;
+  text-align: right;
+  color: #4b5b70;
+  user-select: none;
+  font-size: 11px;
+}
+
+.diff-sign {
+  width: 16px;
+  text-align: center;
+  color: #55677e;
+  user-select: none;
+}
+
+.diff-text {
+  padding-right: 16px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: var(--text-dim);
+}
+
+.diff-line.add {
+  background: rgba(52, 211, 153, 0.09);
+}
+
+.diff-line.add .diff-text,
+.diff-line.add .diff-sign {
+  color: #a7f3d0;
+}
+
+.diff-line.del {
+  background: rgba(248, 113, 113, 0.09);
+}
+
+.diff-line.del .diff-text,
+.diff-line.del .diff-sign {
+  color: #fecaca;
+}
+
+.diff-line.hunk {
+  background: rgba(34, 211, 238, 0.08);
+}
+
+.diff-line.hunk .diff-text,
+.diff-line.hunk .diff-sign {
+  color: var(--accent);
+}
+
+.diff-line.meta .diff-text {
+  color: #6b7f96;
+  font-style: italic;
+}
+
+.diff-error {
+  padding: 14px 16px;
+  color: #fecaca;
+  font-size: 12.5px;
+  font-family: inherit;
+}
+
+.graph-row {
+  cursor: pointer;
+}
+
+.graph-row.is-selected {
+  background: rgba(34, 211, 238, 0.1);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
 @media (max-width: 1180px) {
   .columns {
     grid-template-columns: minmax(0, 1fr);

@@ -17,6 +17,7 @@ import { AddRepoDialog } from './components/AddRepoDialog.tsx';
 import { CommitList } from './components/CommitList.tsx';
 import { GraphView } from './components/GraphView.tsx';
 import { Heatmap, HeatmapLegend } from './components/Heatmap.tsx';
+import { InspectorDrawer, type InspectTarget } from './components/InspectorDrawer.tsx';
 import { OperationPanel } from './components/OperationPanel.tsx';
 import { RefList } from './components/RefList.tsx';
 import { StatCard } from './components/StatCard.tsx';
@@ -55,6 +56,8 @@ export function App() {
   const [snapshots, setSnapshots] = useState<SnapshotEntry[]>([]);
   const [opBusy, setOpBusy] = useState(false);
   const [opMessage, setOpMessage] = useState<{ text: string; tone: 'ok' | 'err' } | null>(null);
+  /** 右侧检查器：工作区文件差异或某次提交的文件清单 */
+  const [inspect, setInspect] = useState<InspectTarget | null>(null);
 
   const refreshRepos = useCallback(async () => {
     const list = await api.repos();
@@ -87,8 +90,11 @@ export function App() {
       setDetail(null);
       setStatus(null);
       setSnapshots([]);
+      setInspect(null);
       return;
     }
+    // 换仓库时关掉检查器，否则会看到上一个仓库的文件差异
+    setInspect(null);
     let cancelled = false;
     setLoadingDetail(true);
     void (async () => {
@@ -327,6 +333,8 @@ export function App() {
             opMessage={opMessage}
             onGit={(body) => void handleGit(body)}
             onRefreshStatus={() => setReloadKey((key) => key + 1)}
+            onInspect={setInspect}
+            selectedSha={inspect?.kind === 'commit' ? inspect.sha : null}
           />
         )}
       </main>
@@ -345,6 +353,8 @@ export function App() {
         }}
         onSubmit={(path) => void handleAdd(path)}
       />
+
+      <InspectorDrawer repoId={selectedId ?? 0} target={inspect} onClose={() => setInspect(null)} />
     </div>
   );
 }
@@ -361,6 +371,8 @@ interface RepoViewProps {
   opMessage: { text: string; tone: 'ok' | 'err' } | null;
   onGit: (body: GitActionBody) => void;
   onRefreshStatus: () => void;
+  onInspect: (target: InspectTarget) => void;
+  selectedSha: string | null;
 }
 
 function RepoView({
@@ -375,6 +387,8 @@ function RepoView({
   opMessage,
   onGit,
   onRefreshStatus,
+  onInspect,
+  selectedSha,
 }: RepoViewProps) {
   const { summary, timeline, refs, commits, graph } = detail;
   const totalChanges = summary.insertions + summary.deletions;
@@ -449,13 +463,14 @@ function RepoView({
         message={opMessage}
         onRun={onGit}
         onRefresh={onRefreshStatus}
+        onOpenDiff={(path, staged) => onInspect({ kind: 'working', path, staged })}
       />
 
       <div className="card">
         <div className="card-head">
           <div className="card-title">
             提交图谱
-            <span className="hint">每条泳道是一条提交链，弧线是合并</span>
+            <span className="hint">每条泳道是一条提交链，弧线是合并；点任意一行看这次改了哪些文件</span>
           </div>
           <div className="graph-key">
             <span className="graph-key-item">
@@ -467,7 +482,11 @@ function RepoView({
           </div>
         </div>
         <div className="card-body">
-          <GraphView graph={graph} />
+          <GraphView
+            graph={graph}
+            selectedSha={selectedSha}
+            onSelect={(commit) => onInspect({ kind: 'commit', ...commit })}
+          />
         </div>
       </div>
 

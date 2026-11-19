@@ -14,9 +14,17 @@ function laneColor(lane: number): string {
 
 interface GraphViewProps {
   graph: GraphResponse;
+  /** 点一行看这次提交改了哪些文件 */
+  onSelect?: (commit: {
+    sha: string;
+    subject: string;
+    authorName: string;
+    authoredAt: string;
+  }) => void;
+  selectedSha?: string | null;
 }
 
-export function GraphView({ graph }: GraphViewProps) {
+export function GraphView({ graph, onSelect, selectedSha }: GraphViewProps) {
   const { commits, laneCount, total, truncated } = graph;
   const [hover, setHover] = useState<string | null>(null);
 
@@ -116,11 +124,21 @@ export function GraphView({ graph }: GraphViewProps) {
             {commits.map((commit) => (
               <div
                 key={commit.sha}
-                className={`graph-row${hover === commit.sha ? ' is-hover' : ''}`}
+                className={`graph-row${hover === commit.sha ? ' is-hover' : ''}${
+                  selectedSha === commit.sha ? ' is-selected' : ''
+                }`}
                 style={{ height: ROW_H, paddingLeft: gutter }}
                 onMouseEnter={() => setHover(commit.sha)}
                 onMouseLeave={() => setHover(null)}
-                title={`${commit.shortSha} · ${commit.authorName} · ${formatDate(commit.authoredAt)}\n${commit.subject}`}
+                onClick={() =>
+                  onSelect?.({
+                    sha: commit.sha,
+                    subject: commit.subject,
+                    authorName: commit.authorName,
+                    authoredAt: commit.authoredAt,
+                  })
+                }
+                title={`${commit.shortSha} · ${commit.authorName} · ${formatDate(commit.authoredAt)}\n${commit.subject}\n点击看这次改了哪些文件`}
               >
                 <div className="graph-refs">
                   {commit.refs

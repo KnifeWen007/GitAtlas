@@ -15,6 +15,8 @@ interface OperationPanelProps {
   message: { text: string; tone: 'ok' | 'err' } | null;
   onRun: (body: GitActionBody) => void;
   onRefresh: () => void;
+  /** 点文件看差异：staged 决定看暂存区还是工作区 */
+  onOpenDiff: (path: string, staged: boolean) => void;
 }
 
 function kindLabel(kind: WorkingFile['kind']): string {
@@ -31,23 +33,6 @@ function kindLabel(kind: WorkingFile['kind']): string {
       return '?';
     default:
       return 'M';
-  }
-}
-
-function kindName(kind: WorkingFile['kind']): string {
-  switch (kind) {
-    case 'added':
-      return '新增';
-    case 'deleted':
-      return '删除';
-    case 'renamed':
-      return '改名';
-    case 'conflict':
-      return '冲突';
-    case 'untracked':
-      return '未跟踪';
-    default:
-      return '修改';
   }
 }
 
@@ -78,6 +63,7 @@ export function OperationPanel({
   message,
   onRun,
   onRefresh,
+  onOpenDiff,
 }: OperationPanelProps) {
   const [branchInput, setBranchInput] = useState('');
   const [tagInput, setTagInput] = useState('');
@@ -88,7 +74,21 @@ export function OperationPanel({
   const localBranches = branches.filter((ref) => ref.kind === 'branch');
   const others = localBranches.filter((ref) => ref.shortName !== status?.branch);
   const conflicts = status?.conflicts ?? [];
-  const dirty = status ? status.staged.length + status.unstaged.length + status.untracked.length : 0;
+  const tracked = status ? status.staged.length + status.unstaged.length : 0;
+  const untracked = status?.untracked.length ?? 0;
+  const dirty = tracked + untracked;
+
+  /**
+   * clean 沿用 git 的口径：只看已跟踪文件。未跟踪文件不算"改动"，
+   * 但既然下面会把它们列出来，徽标就不能写"干净"，否则自相矛盾。
+   */
+  const worktree = (() => {
+    if (!status) return { tone: '', text: '正在读取状态' };
+    if (conflicts.length > 0) return { tone: 'bad', text: `${conflicts.length} 个冲突待处理` };
+    if (tracked > 0) return { tone: 'warn', text: `${dirty} 个文件有改动` };
+    if (untracked > 0) return { tone: 'warn', text: `${untracked} 个未跟踪文件` };
+    return { tone: 'ok', text: '工作区干净' };
+  })();
 
   const run = (body: GitActionBody) => {
     setPendingDiscard(null);
@@ -115,9 +115,7 @@ export function OperationPanel({
             <span className="op-chip branch">{status.branch ?? '游离 HEAD（不在分支上）'}</span>
             {status.ahead > 0 ? <span className="op-chip up">↑ {status.ahead} 待推送</span> : null}
             {status.behind > 0 ? <span className="op-chip down">↓ {status.behind} 待拉取</span> : null}
-            <span className={`op-chip ${status.clean ? 'ok' : 'warn'}`}>
-              {status.clean ? '工作区干净' : `${dirty} 个文件有改动`}
-            </span>
+            <span className={`op-chip ${worktree.tone}`}>{worktree.text}</span>
             {status.operation ? (
               <span className="op-chip bad">正在 {status.operation}</span>
             ) : null}
@@ -277,10 +275,14 @@ export function OperationPanel({
 
             {status.staged.map((file) => (
               <div className="op-file" key={`s-${file.path}`}>
-                <code className="op-code k-staged">{kindLabel(file.kind)}</code>
-                <span className="op-path" title={`${kindName(file.kind)}（已暂存）`}>
-                  {file.path}
-                </span>
+                <button
+                  className="op-file-main"
+                  onClick={() => onOpenDiff(file.path, true)}
+                  title="点开看这个文件暂存了什么"
+                >
+                  <code className="op-code k-staged">{kindLabel(file.kind)}</code>
+                  <span className="op-path">{file.path}</span>
+                </button>
                 <div className="op-file-actions">
                   <button
                     className="btn btn-xs btn-ghost"
@@ -295,10 +297,14 @@ export function OperationPanel({
 
             {status.unstaged.map((file) => (
               <div className="op-file" key={`u-${file.path}`}>
-                <code className={`op-code k-${file.kind}`}>{kindLabel(file.kind)}</code>
-                <span className="op-path" title={`${kindName(file.kind)}（未暂存）`}>
-                  {file.path}
-                </span>
+                <button
+                  className="op-file-main"
+                  onClick={() => onOpenDiff(file.path, false)}
+                  title="点开看这个文件改了什么"
+                >
+                  <code className={`op-code k-${file.kind}`}>{kindLabel(file.kind)}</code>
+                  <span className="op-path">{file.path}</span>
+                </button>
                 <div className="op-file-actions">
                   <button
                     className="btn btn-xs"
@@ -330,10 +336,14 @@ export function OperationPanel({
 
             {status.untracked.map((file) => (
               <div className="op-file" key={`n-${file.path}`}>
-                <code className="op-code k-untracked">?</code>
-                <span className="op-path" title="未跟踪">
-                  {file.path}
-                </span>
+                <button
+                  className="op-file-main"
+                  onClick={() => onOpenDiff(file.path, false)}
+                  title="点开看这个新文件的内容"
+                >
+                  <code className="op-code k-untracked">?</code>
+                  <span className="op-path">{file.path}</span>
+                </button>
                 <div className="op-file-actions">
                   <button
                     className="btn btn-xs"

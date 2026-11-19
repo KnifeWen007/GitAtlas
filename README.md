@@ -97,18 +97,19 @@ docs/              方案、架构、交互规格、问题规则、账号与部�
 | 环节 | 结果 |
 | --- | --- |
 | 索引 | eviacam 817 提交 / 1.6s；img2threejs 368 提交 / 1.1s；GitAtlas-Demo 32 提交 / 1.3s |
-| API | health · repos · timeline · refs · commits · graph · status · snapshots · git actions · reindex · tasks |
+| API | health · repos · timeline · refs · commits · graph · status · snapshots · diff · commit-files · commit-diff · git actions · reindex · tasks |
 | 界面 | 摘要卡、自适应热力图、SVG 提交图谱、分支与标签、最近提交、可视化操作台 |
+| 观察 | 点工作区文件看逐行差异；点图谱任意提交看该次改了哪些文件及每个文件的差异（合并提交按第一父比较） |
 | 操作 | 获取远端、拉取、推送、切换/新建/合并/删除分支、打标签、暂存、提交、冲突选边、回滚点 |
 | 桌面 | Electron 便携版 + 安装版；原生目录选择；内嵌 Fastify；随机本地端口 |
-| 质量 | core / server / web 三个包 `tsc --noEmit` 全绿；写操作 HTTP 端到端测试通过 |
+| 质量 | core / server / web 三个包 `tsc --noEmit` 全绿；写操作与差异接口均通过 HTTP 端到端测试 |
 
 ### 下一步缺口（按优先级）
 
 1. **增量索引**：目前每次重建全量数据，5 万提交以上会慢（P1）
 2. **问题雷达**：规则引擎未实现，`problem-rules.md` 仍是设计（P2）
-3. **提交详情**：点击图谱节点后展开文件改动、差异和作者信息（P2）
-4. **冲突编辑器**：目前支持保留本地/对方版本，暂未内置逐行编辑器（P2）
+3. **逐行冲突编辑器**：目前只能整份选择保留本地或对方版本（P2）
+4. **任意时刻快照浏览**：现在按提交看差异，还没做"拖时间轴回放历史"（P2）
 5. **凭据与账号**：推送依赖系统已有 Git 凭据，账号管理与团队权限仍未接入（P5）
 6. **移动端**：移动端布局和 PWA 仍未发布（P6）
 7. 热力图跨度超过 2 年时需要横向滚动，后续应按周/月聚合

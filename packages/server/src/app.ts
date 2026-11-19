@@ -35,12 +35,25 @@ import {
   unstagePaths,
   discardPaths,
   commitAll,
+  GitReader,
+  getWorkingDiff,
+  getCommitFiles,
+  getCommitFileDiff,
   type IndexProgress,
   type OpResult,
 } from '@gitatlas/core';
 
 /** 写操作参数缺失：区别于 git 自身的失败，前端要提示用户补输入 */
 class InvalidInput extends Error {}
+
+/** 把 git 的原始报错收拾成一句能直接显示的话 */
+function explainGitFailure(error: unknown): string {
+  if (error instanceof Error) {
+    const stripped = error.message.replace(/^git \S+ 失败（退出码 \d+）：/, '').trim();
+    return stripped.length > 0 ? stripped : error.message;
+  }
+  return String(error);
+}
 
 /** 这些操作会移动 HEAD，索引数据随之过期 */
 const HEAD_MOVING = new Set(['pull', 'merge', 'reset', 'restore', 'checkout', 'commit', 'concludeMerge']);
@@ -347,6 +360,65 @@ export async function startServer(options: ServerOptions): Promise<ServerHandle>
     if (!repo) return reply.code(404).send({ error: '仓库不存在' });
     return listSnapshots(gitPath, repo.path);
   });
+
+  /** 工作区单文件差异；staged=1 看暂存区，否则看未暂存 */
+  app.get<{ Params: { id: string }; Querystring: { path?: string; staged?: string } }>(
+    '/api/repos/:id/diff',
+    async (request, reply) => {
+      const id = Number(request.params.id);
+      if (!Number.isFinite(id)) return reply.code(400).send({ error: 'id 无效' });
+      const repo = getRepo(store, id);
+      if (!repo) return reply.code(404).send({ error: '仓库不存在' });
+      const filePath = request.query.path?.trim();
+      if (!filePath) return reply.code(400).send({ error: '请指定文件路径' });
+      try {
+        const reader = new GitReader({ cwd: repo.path, ...(gitPath ? { gitPath } : {}) });
+        return await getWorkingDiff(reader, repo.path, filePath, { staged: request.query.staged === '1' });
+      } catch (error) {
+        return reply.code(400).send({ error: error instanceof Error ? error.message : String(error) });
+      }
+    },
+  );
+
+  /** 某次提交改了哪些文件 */
+  app.get<{ Params: { id: string; sha: string } }>(
+    '/api/repos/:id/commits/:sha/files',
+    async (request, reply) => {
+      const id = Number(request.params.id);
+      if (!Number.isFinite(id)) return reply.code(400).send({ error: 'id 无效' });
+      const repo = getRepo(store, id);
+      if (!repo) return reply.code(404).send({ error: '仓库不存在' });
+      const sha = request.params.sha.trim();
+      if (!/^[0-9a-f]{4,40}$/i.test(sha)) return reply.code(400).send({ error: '提交号格式不对' });
+      try {
+        const reader = new GitReader({ cwd: repo.path, ...(gitPath ? { gitPath } : {}) });
+        return await getCommitFiles(reader, sha);
+      } catch (error) {
+        return reply.code(400).send({ error: explainGitFailure(error) });
+      }
+    },
+  );
+
+  /** 某次提交里单个文件的差异 */
+  app.get<{ Params: { id: string; sha: string }; Querystring: { path?: string; oldPath?: string } }>(
+    '/api/repos/:id/commits/:sha/diff',
+    async (request, reply) => {
+      const id = Number(request.params.id);
+      if (!Number.isFinite(id)) return reply.code(400).send({ error: 'id 无效' });
+      const repo = getRepo(store, id);
+      if (!repo) return reply.code(404).send({ error: '仓库不存在' });
+      const sha = request.params.sha.trim();
+      if (!/^[0-9a-f]{4,40}$/i.test(sha)) return reply.code(400).send({ error: '提交号格式不对' });
+      const filePath = request.query.path?.trim();
+      if (!filePath) return reply.code(400).send({ error: '请指定文件路径' });
+      try {
+        const reader = new GitReader({ cwd: repo.path, ...(gitPath ? { gitPath } : {}) });
+        return await getCommitFileDiff(reader, sha, filePath, request.query.oldPath ?? null);
+      } catch (error) {
+        return reply.code(400).send({ error: explainGitFailure(error) });
+      }
+    },
+  );
 
   app.post<{ Params: { id: string }; Body: GitActionBody }>(
     '/api/repos/:id/git',

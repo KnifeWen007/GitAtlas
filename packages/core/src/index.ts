@@ -4,6 +4,14 @@ export { LOG_ARGS, LOG_FORMAT, parseCommitStream, parseNumstatLine, normalisePat
 export type { ParsedCommit, ParsedFileChange } from './git/log.ts';
 export { probeRepo, listRefs, aheadBehind } from './git/repo.ts';
 export type { RepoProbe, RawRef } from './git/repo.ts';
+export {
+  parseUnifiedDiff,
+  getWorkingDiff,
+  getCommitFiles,
+  getCommitFileDiff,
+  statusLabel,
+} from './git/diff.ts';
+export type { DiffLine, DiffLineKind, FileDiff, FileChangeStatus, CommitFile } from './git/diff.ts';
 export { Store, SCHEMA_VERSION } from './store/db.ts';
 export {
   listRepos,

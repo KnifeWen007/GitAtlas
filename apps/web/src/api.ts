@@ -205,6 +205,36 @@ export interface TaskResponse {
   error: string | null;
 }
 
+export interface DiffLine {
+  kind: 'context' | 'add' | 'del' | 'hunk' | 'meta';
+  text: string;
+  oldLine: number | null;
+  newLine: number | null;
+}
+
+export type FileChangeStatus = 'added' | 'modified' | 'deleted' | 'renamed' | 'copied' | 'binary';
+
+export interface FileDiff {
+  path: string;
+  oldPath: string | null;
+  status: FileChangeStatus;
+  lines: DiffLine[];
+  added: number;
+  removed: number;
+  binary: boolean;
+  truncated: boolean;
+  note: string | null;
+}
+
+export interface CommitFile {
+  path: string;
+  oldPath: string | null;
+  status: FileChangeStatus;
+  added: number;
+  removed: number;
+  binary: boolean;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   // 只有真正带 body 时才声明 JSON，否则 Fastify 会以「空的 JSON 体」拒绝
   const headers: Record<string, string> = { ...((init?.headers as Record<string, string>) ?? {}) };
@@ -244,6 +274,15 @@ export const api = {
   graph: (id: number, limit = 240) => request<GraphResponse>(`/api/repos/${id}/graph?limit=${limit}`),
   status: (id: number) => request<RepoStatus>(`/api/repos/${id}/status`),
   snapshots: (id: number) => request<SnapshotEntry[]>(`/api/repos/${id}/snapshots`),
+  diff: (id: number, path: string, staged = false) =>
+    request<FileDiff>(`/api/repos/${id}/diff?path=${encodeURIComponent(path)}${staged ? '&staged=1' : ''}`),
+  commitFiles: (id: number, sha: string) => request<CommitFile[]>(`/api/repos/${id}/commits/${sha}/files`),
+  commitDiff: (id: number, sha: string, path: string, oldPath?: string | null) =>
+    request<FileDiff>(
+      `/api/repos/${id}/commits/${sha}/diff?path=${encodeURIComponent(path)}${
+        oldPath ? `&oldPath=${encodeURIComponent(oldPath)}` : ''
+      }`,
+    ),
   git: (id: number, body: GitActionBody) =>
     request<OpResult>(`/api/repos/${id}/git`, { method: 'POST', body: JSON.stringify(body) }),
   reindex: (id: number) => request<{ taskId: string }>(`/api/repos/${id}/reindex`, { method: 'POST' }),
