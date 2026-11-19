@@ -6,6 +6,7 @@ import type {
   SnapshotEntry,
   WorkingFile,
 } from '../api.ts';
+import { SelectMenu } from './SelectMenu.tsx';
 
 interface OperationPanelProps {
   status: RepoStatus | null;
@@ -236,19 +237,15 @@ export function OperationPanel({
         <div className="op-block">
           <div className="op-block-title">分支</div>
           <div className="op-buttons">
-            <select
-              className="op-input"
+            <SelectMenu
+              className="op-select"
               value={picked}
-              onChange={(event) => setPicked(event.target.value)}
+              onChange={setPicked}
               disabled={busy || others.length === 0}
-            >
-              <option value="">{others.length > 0 ? '选一个分支…' : '没有其他本地分支'}</option>
-              {others.map((ref) => (
-                <option key={ref.name} value={ref.shortName}>
-                  {ref.shortName}
-                </option>
-              ))}
-            </select>
+              placeholder={others.length > 0 ? '选一个分支…' : '没有其他本地分支'}
+              ariaLabel="选择分支"
+              options={others.map((ref) => ({ value: ref.shortName, label: ref.shortName }))}
+            />
             <button
               className="btn btn-sm"
               disabled={busy || !picked}

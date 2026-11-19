@@ -1,33 +1,143 @@
 :root {
-  /* 低饱和冷调：底色近黑偏蓝，主色用淡青蓝，避免整屏高亮刺眼 */
+  /* 深色：近黑偏蓝的底，主色淡青蓝；浅色覆盖见下方 [data-theme='light'] */
   --bg: #0a0c11;
   --bg-soft: #0e121a;
   --bg-input: #0c1017;
+  --bg-glow: #121a28;
   --panel: #121722;
   --panel-hi: #18202e;
+  --panel-grad-a: rgba(26, 34, 49, 0.85);
+  --panel-grad-b: rgba(17, 22, 32, 0.94);
+  --shell-grad-a: rgba(18, 24, 34, 0.72);
+  --shell-grad-b: rgba(10, 12, 17, 0.55);
   --border: #222c3c;
+  --border-rgb: 34 44 60;
   --border-soft: #1a2331;
   --text: #e2e8f4;
   --text-dim: #95a3ba;
   --text-faint: #66738c;
   --accent: #7aa2f7;
+  --accent-rgb: 122 162 247;
   --accent-strong: #5f83dd;
+  --accent-strong-rgb: 95 131 221;
   --accent-bright: #a6c0ff;
   --accent-ink: #0a1020;
-  --accent-dim: rgba(122, 162, 247, 0.12);
+  --accent-dim: rgb(var(--accent-rgb) / 0.12);
   --accent-text: #bacdff;
   --violet: #bb9af7;
+  --violet-rgb: 187 154 247;
   --violet-text: #d8c6ff;
   --green: #9ece6a;
+  --green-rgb: 158 206 106;
   --green-text: #b6e08c;
   --amber: #e0af68;
+  --amber-rgb: 224 175 104;
+  --amber-text: #f0d49a;
   --red: #f7768e;
+  --red-rgb: 247 118 142;
   --red-text: #f7b0bd;
-  --radius: 14px;
+
+  /* 泳道前十色，0 号跟着主色走 */
+  --lane-0: var(--accent);
+  --lane-1: #73daca;
+  --lane-2: #bb9af7;
+  --lane-3: #9ece6a;
+  --lane-4: #e0af68;
+  --lane-5: #f7768e;
+  --lane-6: #7dcfff;
+  --lane-7: #c8a9e8;
+  --lane-8: #8fd6a8;
+  --lane-9: #d9b48c;
+
+  /* 热力图五档 */
+  --heat-0: #1a2130;
+  --heat-1: #22304a;
+  --heat-2: #2f4a78;
+  --heat-3: #4a72b8;
+  --heat-4: #7aa2f7;
+  --muted-rgb: 148 163 184;
+  --lift-rgb: 255 255 255;
+  --shadow-rgb: 0 0 0;
+  --card-lift: rgba(255, 255, 255, 0.045);
+  --scroll-thumb: #232c3a;
+  --scroll-thumb-hover: #33405a;
+  --scrim: rgba(4, 7, 12, 0.72);
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.24);
+  --shadow-pop: 0 12px 32px rgba(0, 0, 0, 0.55);
+  --shadow-drawer: -24px 0 60px rgba(0, 0, 0, 0.55);
+  --shadow-modal: 0 24px 64px rgba(0, 0, 0, 0.6);
+  --radius: 14px;
   --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', 'PingFang SC',
     sans-serif;
   --mono: 'JetBrains Mono', 'Cascadia Code', ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+
+/* 浅色：白底、低对比边框；主色压深一档，白字才压得住 */
+[data-theme='light'] {
+  --bg: #f4f6fb;
+  --bg-soft: #eaeef7;
+  --bg-input: #ffffff;
+  --bg-glow: #dde7fa;
+  --panel: #ffffff;
+  --panel-hi: #f3f7fd;
+  --panel-grad-a: rgba(255, 255, 255, 0.98);
+  --panel-grad-b: rgba(249, 251, 255, 0.96);
+  --shell-grad-a: rgba(255, 255, 255, 0.92);
+  --shell-grad-b: rgba(243, 246, 252, 0.88);
+  --border: #d8e0ee;
+  --border-rgb: 216 224 238;
+  --border-soft: #e6ecf6;
+  --text: #141a26;
+  --text-dim: #5a6479;
+  --text-faint: #8b95a9;
+  --accent: #3b6fe0;
+  --accent-rgb: 59 111 224;
+  --accent-strong: #2f5bc4;
+  --accent-strong-rgb: 47 91 196;
+  --accent-bright: #2f5bc4;
+  --accent-ink: #ffffff;
+  --accent-text: #2a53ad;
+  --violet: #7c5cd6;
+  --violet-rgb: 124 92 214;
+  --violet-text: #5f43b3;
+  --green: #3d8b3a;
+  --green-rgb: 61 139 58;
+  --green-text: #2b7028;
+  --amber: #b3781d;
+  --amber-rgb: 179 120 29;
+  --amber-text: #8f5d0c;
+  --red: #d6435f;
+  --red-rgb: 214 67 95;
+  --red-text: #b12a44;
+
+  /* 浅色下同一批泳道压深一档，白底上才看得清 */
+  --lane-0: var(--accent);
+  --lane-1: #2f8f7a;
+  --lane-2: #7c5cd6;
+  --lane-3: #4d7f2f;
+  --lane-4: #a06a1c;
+  --lane-5: #c23b52;
+  --lane-6: #2f7f9e;
+  --lane-7: #8a5bb0;
+  --lane-8: #3f7a4a;
+  --lane-9: #8a6234;
+
+  --heat-0: #e9edf5;
+  --heat-1: #cddcf5;
+  --heat-2: #a9c4ee;
+  --heat-3: #6f97e0;
+  --heat-4: #3b6fe0;
+  --muted-rgb: 100 116 139;
+  --lift-rgb: 15 23 42;
+  --shadow-rgb: 16 24 40;
+  --card-lift: rgba(255, 255, 255, 0.9);
+  --scroll-thumb: #c7d0df;
+  --scroll-thumb-hover: #a9b5c8;
+  --scrim: rgba(20, 26, 38, 0.28);
+  --shadow: 0 1px 2px rgba(16, 24, 40, 0.06), 0 10px 26px rgba(16, 24, 40, 0.08);
+  --shadow-pop: 0 12px 32px rgba(16, 24, 40, 0.16);
+  --shadow-drawer: -24px 0 60px rgba(16, 24, 40, 0.18);
+  --shadow-modal: 0 24px 64px rgba(16, 24, 40, 0.22);
 }
 
 * {
@@ -42,7 +152,7 @@ body,
 
 body {
   margin: 0;
-  background: radial-gradient(1200px 600px at 80% -10%, #121a28 0%, transparent 60%), var(--bg);
+  background: radial-gradient(1200px 600px at 80% -10%, var(--bg-glow) 0%, transparent 60%), var(--bg);
   color: var(--text);
   font-family: var(--font);
   font-size: 14px;
@@ -51,7 +161,7 @@ body {
 }
 
 ::selection {
-  background: rgba(122, 162, 247, 0.28);
+  background: rgb(var(--accent-rgb) / 0.28);
 }
 
 ::-webkit-scrollbar {
@@ -59,13 +169,13 @@ body {
   height: 10px;
 }
 ::-webkit-scrollbar-thumb {
-  background: #232c3a;
+  background: var(--scroll-thumb);
   border-radius: 999px;
   border: 2px solid transparent;
   background-clip: padding-box;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #33405a;
+  background: var(--scroll-thumb-hover);
   background-clip: padding-box;
 }
 ::-webkit-scrollbar-track {
@@ -89,7 +199,7 @@ body {
   gap: 16px;
   padding: 20px 14px;
   border-right: 1px solid var(--border-soft);
-  background: linear-gradient(180deg, rgba(18, 24, 34, 0.72), rgba(10, 12, 17, 0.55));
+  background: linear-gradient(180deg, var(--shell-grad-a), var(--shell-grad-b));
   backdrop-filter: blur(8px);
   overflow-y: auto;
 }
@@ -113,7 +223,7 @@ body {
   height: 30px;
   border-radius: 9px;
   background: linear-gradient(140deg, var(--accent), var(--violet));
-  box-shadow: 0 0 22px rgba(122, 162, 247, 0.35);
+  box-shadow: 0 0 22px rgb(var(--accent-rgb) / 0.35);
   position: relative;
   flex: none;
 }
@@ -124,7 +234,7 @@ body {
   inset: 8px;
   border-radius: 4px;
   background: var(--accent-ink);
-  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.55);
+  box-shadow: inset 0 0 0 2px rgb(var(--lift-rgb) / 0.55);
 }
 
 .brand-text {
@@ -181,12 +291,12 @@ body {
 }
 
 .repo-item:hover {
-  background: rgba(122, 162, 247, 0.09);
+  background: rgb(var(--accent-rgb) / 0.09);
 }
 
 .repo-item.active {
-  background: linear-gradient(90deg, var(--accent-dim), rgba(122, 162, 247, 0.04));
-  border-color: rgba(122, 162, 247, 0.35);
+  background: linear-gradient(90deg, var(--accent-dim), rgb(var(--accent-rgb) / 0.04));
+  border-color: rgb(var(--accent-rgb) / 0.35);
 }
 
 .repo-item-name {
@@ -226,11 +336,11 @@ body {
 }
 .dot.ok {
   background: var(--green);
-  box-shadow: 0 0 8px rgba(158, 206, 106, 0.7);
+  box-shadow: 0 0 8px rgb(var(--green-rgb) / 0.7);
 }
 .dot.bad {
   background: var(--red);
-  box-shadow: 0 0 8px rgba(247, 118, 142, 0.7);
+  box-shadow: 0 0 8px rgb(var(--red-rgb) / 0.7);
 }
 
 /* ---------- 按钮与输入 ---------- */
@@ -254,8 +364,8 @@ body {
 }
 
 .btn:hover {
-  background: rgba(122, 162, 247, 0.1);
-  border-color: rgba(122, 162, 247, 0.35);
+  background: rgb(var(--accent-rgb) / 0.1);
+  border-color: rgb(var(--accent-rgb) / 0.35);
 }
 
 .btn:active {
@@ -268,15 +378,15 @@ body {
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, #6f92e8, var(--accent-strong));
-  border-color: rgba(122, 162, 247, 0.55);
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  border-color: rgb(var(--accent-rgb) / 0.55);
   color: var(--accent-ink);
   font-weight: 600;
-  box-shadow: 0 2px 14px rgba(95, 131, 221, 0.22);
+  box-shadow: 0 2px 14px rgb(var(--accent-strong-rgb) / 0.22);
 }
 
 .btn-primary:hover {
-  background: linear-gradient(135deg, #6f92e8, #86a9f4);
+  background: linear-gradient(135deg, var(--accent-bright), var(--accent));
 }
 
 .btn-ghost {
@@ -287,7 +397,7 @@ body {
 }
 
 .btn-ghost:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: rgb(var(--lift-rgb) / 0.05);
   color: var(--text);
 }
 
@@ -304,7 +414,7 @@ body {
 
 .btn-accent {
   background: var(--accent);
-  border-color: var(--accent);
+  border-color: var(--accent-text);
   color: var(--accent-ink);
   font-weight: 600;
 }
@@ -315,13 +425,13 @@ body {
 }
 
 .btn-danger {
-  background: rgba(247, 118, 142, 0.16);
-  border-color: rgba(247, 118, 142, 0.45);
+  background: rgb(var(--red-rgb) / 0.16);
+  border-color: rgb(var(--red-rgb) / 0.45);
   color: var(--red-text);
 }
 
 .btn-danger:hover {
-  background: rgba(247, 118, 142, 0.26);
+  background: rgb(var(--red-rgb) / 0.26);
 }
 
 .input {
@@ -338,8 +448,8 @@ body {
 }
 
 .input:focus {
-  border-color: rgba(122, 162, 247, 0.6);
-  box-shadow: 0 0 0 3px rgba(122, 162, 247, 0.12);
+  border-color: rgb(var(--accent-rgb) / 0.6);
+  box-shadow: 0 0 0 3px rgb(var(--accent-rgb) / 0.12);
 }
 
 .input::placeholder {
@@ -403,31 +513,31 @@ body {
 }
 
 .badge-accent {
-  border-color: rgba(122, 162, 247, 0.4);
-  background: rgba(122, 162, 247, 0.1);
+  border-color: rgb(var(--accent-rgb) / 0.4);
+  background: rgb(var(--accent-rgb) / 0.1);
   color: var(--accent-text);
 }
 
 .badge-violet {
-  border-color: rgba(187, 154, 247, 0.4);
-  background: rgba(187, 154, 247, 0.1);
+  border-color: rgb(var(--violet-rgb) / 0.4);
+  background: rgb(var(--violet-rgb) / 0.1);
   color: var(--violet-text);
 }
 
 .badge-warn {
-  border-color: rgba(224, 175, 104, 0.4);
-  background: rgba(224, 175, 104, 0.1);
-  color: #f0d49a;
+  border-color: rgb(var(--amber-rgb) / 0.4);
+  background: rgb(var(--amber-rgb) / 0.1);
+  color: var(--amber-text);
 }
 
 /* ---------- 卡片 ---------- */
 
 .card {
-  background: linear-gradient(180deg, rgba(26, 34, 49, 0.85), rgba(17, 22, 32, 0.94));
+  background: linear-gradient(180deg, var(--panel-grad-a), var(--panel-grad-b));
   border: 1px solid var(--border);
   border-radius: var(--radius);
   /* 顶部一道极淡高光，卡片之间才有层次，不然一片深色糊在一起 */
-  box-shadow: var(--shadow), inset 0 1px 0 rgba(255, 255, 255, 0.045);
+  box-shadow: var(--shadow), inset 0 1px 0 var(--card-lift);
 }
 
 .card-head {
@@ -471,7 +581,7 @@ body {
   padding: 13px 15px;
   border-radius: 12px;
   border: 1px solid var(--border);
-  background: linear-gradient(180deg, rgba(24, 32, 46, 0.55), rgba(14, 18, 26, 0.6));
+  background: linear-gradient(180deg, var(--panel-grad-a), var(--panel-grad-b));
   display: flex;
   flex-direction: column;
   gap: 3px;
@@ -561,7 +671,7 @@ body {
   border-radius: 9px;
   padding: 7px 10px;
   font-size: 12px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
+  box-shadow: var(--shadow-pop);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
   color: var(--text);
@@ -603,7 +713,7 @@ body {
   overflow-x: hidden;
   border: 1px solid var(--border-soft);
   border-radius: 10px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.012), transparent 120px);
+  background: linear-gradient(180deg, rgb(var(--lift-rgb) / 0.012), transparent 120px);
 }
 
 .graph-canvas {
@@ -627,12 +737,12 @@ body {
   gap: 10px;
   padding-right: 12px;
   font-size: 12.5px;
-  border-bottom: 1px solid rgba(34, 44, 60, 0.5);
+  border-bottom: 1px solid rgb(var(--border-rgb) / 0.5);
   transition: background 120ms ease;
 }
 
 .graph-row.is-hover {
-  background: rgba(122, 162, 247, 0.07);
+  background: rgb(var(--accent-rgb) / 0.07);
 }
 
 .graph-refs {
@@ -658,21 +768,21 @@ body {
 }
 
 .gref.branch {
-  color: var(--accent);
-  background: rgba(122, 162, 247, 0.1);
-  border-color: rgba(122, 162, 247, 0.3);
+  color: var(--accent-text);
+  background: rgb(var(--accent-rgb) / 0.1);
+  border-color: rgb(var(--accent-rgb) / 0.3);
 }
 
 .gref.tag {
-  color: var(--amber);
-  background: rgba(224, 175, 104, 0.1);
-  border-color: rgba(224, 175, 104, 0.28);
+  color: var(--amber-text);
+  background: rgb(var(--amber-rgb) / 0.1);
+  border-color: rgb(var(--amber-rgb) / 0.28);
 }
 
 .gref.head {
   color: var(--accent-ink);
   background: var(--accent);
-  border-color: var(--accent);
+  border-color: var(--accent-text);
   font-weight: 600;
 }
 
@@ -707,7 +817,7 @@ button.gref:hover {
   padding: 0 8px;
   border-radius: 7px;
   border: 1px solid var(--border-soft);
-  background: rgba(255, 255, 255, 0.04);
+  background: rgb(var(--lift-rgb) / 0.04);
   color: var(--text);
   font-size: 12px;
 }
@@ -720,14 +830,14 @@ button.gref:hover {
   padding: 8px 11px;
   border-radius: 9px;
   border: 1px solid var(--border-soft);
-  background: rgba(255, 255, 255, 0.02);
+  background: rgb(var(--lift-rgb) / 0.02);
   font-size: 12px;
   color: var(--text-dim);
 }
 
 .graph-focus-bar.is-focus {
-  border-color: rgba(122, 162, 247, 0.35);
-  background: rgba(122, 162, 247, 0.07);
+  border-color: rgb(var(--accent-rgb) / 0.35);
+  background: rgb(var(--accent-rgb) / 0.07);
 }
 
 .graph-focus-label b {
@@ -736,7 +846,7 @@ button.gref:hover {
 }
 
 .graph-focus-bar.is-focus .graph-focus-label b {
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 .graph-focus-meta {
@@ -754,7 +864,7 @@ button.gref:hover {
 }
 
 .graph-row.is-mine {
-  background: linear-gradient(90deg, rgba(122, 162, 247, 0.12), transparent 45%);
+  background: linear-gradient(90deg, rgb(var(--accent-rgb) / 0.12), transparent 45%);
 }
 
 .graph-row.is-mine .graph-subject {
@@ -762,15 +872,15 @@ button.gref:hover {
 }
 
 .graph-row.is-tip {
-  background: rgba(122, 162, 247, 0.16);
+  background: rgb(var(--accent-rgb) / 0.16);
 }
 
 .graph-tip {
   padding: 1px 5px;
   border-radius: 4px;
   font-size: 10px;
-  color: var(--accent);
-  border: 1px dashed rgba(122, 162, 247, 0.55);
+  color: var(--accent-text);
+  border: 1px dashed rgb(var(--accent-rgb) / 0.55);
   white-space: nowrap;
 }
 
@@ -855,14 +965,14 @@ button.gref:hover {
 }
 
 .op-message.ok {
-  background: rgba(158, 206, 106, 0.1);
-  border-color: rgba(158, 206, 106, 0.35);
+  background: rgb(var(--green-rgb) / 0.1);
+  border-color: rgb(var(--green-rgb) / 0.35);
   color: var(--green-text);
 }
 
 .op-message.err {
-  background: rgba(247, 118, 142, 0.1);
-  border-color: rgba(247, 118, 142, 0.38);
+  background: rgb(var(--red-rgb) / 0.1);
+  border-color: rgb(var(--red-rgb) / 0.38);
   color: var(--red-text);
 }
 
@@ -881,38 +991,38 @@ button.gref:hover {
   border-radius: 999px;
   font-size: 11.5px;
   border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.02);
+  background: rgb(var(--lift-rgb) / 0.02);
   color: var(--text-dim);
 }
 
 .op-chip.branch {
   color: var(--text);
-  border-color: rgba(122, 162, 247, 0.4);
-  background: rgba(122, 162, 247, 0.1);
+  border-color: rgb(var(--accent-rgb) / 0.4);
+  background: rgb(var(--accent-rgb) / 0.1);
   font-family: var(--mono);
 }
 
 .op-chip.ok {
   color: var(--green-text);
-  border-color: rgba(158, 206, 106, 0.35);
+  border-color: rgb(var(--green-rgb) / 0.35);
 }
 
 .op-chip.warn {
-  color: var(--amber);
-  border-color: rgba(224, 175, 104, 0.35);
+  color: var(--amber-text);
+  border-color: rgb(var(--amber-rgb) / 0.35);
 }
 
 .op-chip.bad {
-  color: var(--red);
-  border-color: rgba(247, 118, 142, 0.45);
+  color: var(--red-text);
+  border-color: rgb(var(--red-rgb) / 0.45);
 }
 
 .op-chip.up {
-  color: var(--violet);
+  color: var(--violet-text);
 }
 
 .op-chip.down {
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 .op-block {
@@ -922,12 +1032,12 @@ button.gref:hover {
   padding: 10px 12px;
   border: 1px solid var(--border-soft);
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.012);
+  background: rgb(var(--lift-rgb) / 0.012);
 }
 
 .op-block-alert {
-  border-color: rgba(247, 118, 142, 0.35);
-  background: rgba(247, 118, 142, 0.05);
+  border-color: rgb(var(--red-rgb) / 0.35);
+  background: rgb(var(--red-rgb) / 0.05);
 }
 
 .op-block-title {
@@ -959,7 +1069,7 @@ button.gref:hover {
 
 .op-input:focus {
   outline: none;
-  border-color: rgba(122, 162, 247, 0.55);
+  border-color: rgb(var(--accent-rgb) / 0.55);
 }
 
 .op-input-wide {
@@ -982,28 +1092,28 @@ button.gref:hover {
   font-size: 11px;
   border-radius: 4px;
   padding: 1px 0;
-  background: rgba(148, 163, 184, 0.14);
+  background: rgb(var(--muted-rgb) / 0.14);
   color: var(--text-dim);
 }
 
 .op-code.k-modified {
-  color: var(--amber);
-  background: rgba(224, 175, 104, 0.14);
+  color: var(--amber-text);
+  background: rgb(var(--amber-rgb) / 0.14);
 }
 
 .op-code.k-added {
-  color: var(--green);
-  background: rgba(158, 206, 106, 0.14);
+  color: var(--green-text);
+  background: rgb(var(--green-rgb) / 0.14);
 }
 
 .op-code.k-deleted {
-  color: var(--red);
-  background: rgba(247, 118, 142, 0.14);
+  color: var(--red-text);
+  background: rgb(var(--red-rgb) / 0.14);
 }
 
 .op-code.k-conflict {
   color: #fff;
-  background: rgba(247, 118, 142, 0.6);
+  background: rgb(var(--red-rgb) / 0.6);
 }
 
 .op-code.k-untracked {
@@ -1011,8 +1121,8 @@ button.gref:hover {
 }
 
 .op-code.k-staged {
-  color: var(--accent);
-  background: rgba(122, 162, 247, 0.14);
+  color: var(--accent-text);
+  background: rgb(var(--accent-rgb) / 0.14);
 }
 
 /* sha 比单字符代码宽，固定宽度会让文字压到后面的路径上 */
@@ -1020,7 +1130,7 @@ button.gref:hover {
   width: auto;
   padding: 1px 6px;
   color: var(--text-dim);
-  background: rgba(148, 163, 184, 0.14);
+  background: rgb(var(--muted-rgb) / 0.14);
   letter-spacing: 0.2px;
 }
 
@@ -1063,7 +1173,7 @@ button.gref:hover {
 }
 
 .op-file-main:hover .op-path {
-  color: var(--accent);
+  color: var(--accent-text);
   text-decoration: underline;
   text-underline-offset: 2px;
 }
@@ -1080,7 +1190,7 @@ button.gref:hover {
   flex-direction: column;
   background: var(--bg-input);
   border-left: 1px solid var(--border);
-  box-shadow: -24px 0 60px rgba(0, 0, 0, 0.55);
+  box-shadow: var(--shadow-drawer);
   z-index: 70;
 }
 
@@ -1130,11 +1240,11 @@ button.gref:hover {
 }
 
 .inspector-stat .plus {
-  color: var(--green);
+  color: var(--green-text);
 }
 
 .inspector-stat .minus {
-  color: var(--red);
+  color: var(--red-text);
 }
 
 .inspector-files {
@@ -1159,11 +1269,11 @@ button.gref:hover {
 }
 
 .inspector-file:hover {
-  background: rgba(255, 255, 255, 0.035);
+  background: rgb(var(--lift-rgb) / 0.035);
 }
 
 .inspector-file.is-active {
-  background: rgba(122, 162, 247, 0.1);
+  background: rgb(var(--accent-rgb) / 0.1);
   color: var(--text);
 }
 
@@ -1172,24 +1282,24 @@ button.gref:hover {
   font-size: 10.5px;
   padding: 1px 6px;
   border-radius: 5px;
-  background: rgba(148, 163, 184, 0.16);
+  background: rgb(var(--muted-rgb) / 0.16);
   color: var(--text-dim);
 }
 
 .inspector-tag.t-added {
-  color: var(--green);
-  background: rgba(158, 206, 106, 0.16);
+  color: var(--green-text);
+  background: rgb(var(--green-rgb) / 0.16);
 }
 
 .inspector-tag.t-deleted {
-  color: var(--red);
-  background: rgba(247, 118, 142, 0.16);
+  color: var(--red-text);
+  background: rgb(var(--red-rgb) / 0.16);
 }
 
 .inspector-tag.t-renamed,
 .inspector-tag.t-copied {
-  color: var(--violet);
-  background: rgba(187, 154, 247, 0.18);
+  color: var(--violet-text);
+  background: rgb(var(--violet-rgb) / 0.18);
 }
 
 .inspector-path {
@@ -1224,16 +1334,16 @@ button.gref:hover {
   flex-wrap: wrap;
   padding: 10px 16px;
   border-bottom: 1px solid var(--border-soft);
-  background: rgba(247, 118, 142, 0.05);
+  background: rgb(var(--red-rgb) / 0.05);
 }
 
 .conflict-count {
   font-size: 12px;
-  color: var(--red);
+  color: var(--red-text);
 }
 
 .conflict-count.is-clean {
-  color: var(--green);
+  color: var(--green-text);
 }
 
 .conflict-actions {
@@ -1245,8 +1355,8 @@ button.gref:hover {
 .conflict-note {
   padding: 7px 16px;
   font-size: 12px;
-  color: var(--accent);
-  background: rgba(122, 162, 247, 0.07);
+  color: var(--accent-text);
+  background: rgb(var(--accent-rgb) / 0.07);
   border-bottom: 1px solid var(--border-soft);
 }
 
@@ -1273,7 +1383,7 @@ button.gref:hover {
 }
 
 .conflict-input:focus {
-  box-shadow: inset 0 0 0 1px rgba(122, 162, 247, 0.35);
+  box-shadow: inset 0 0 0 1px rgb(var(--accent-rgb) / 0.35);
 }
 
 .diff-body {
@@ -1285,9 +1395,9 @@ button.gref:hover {
   padding: 6px 16px;
   font-size: 11.5px;
   font-family: inherit;
-  color: var(--amber);
-  background: rgba(224, 175, 104, 0.08);
-  border-bottom: 1px solid rgba(224, 175, 104, 0.18);
+  color: var(--amber-text);
+  background: rgb(var(--amber-rgb) / 0.08);
+  border-bottom: 1px solid rgb(var(--amber-rgb) / 0.18);
 }
 
 .diff-lines {
@@ -1330,7 +1440,7 @@ button.gref:hover {
 }
 
 .diff-line.add {
-  background: rgba(158, 206, 106, 0.09);
+  background: rgb(var(--green-rgb) / 0.09);
 }
 
 .diff-line.add .diff-text,
@@ -1339,7 +1449,7 @@ button.gref:hover {
 }
 
 .diff-line.del {
-  background: rgba(247, 118, 142, 0.09);
+  background: rgb(var(--red-rgb) / 0.09);
 }
 
 .diff-line.del .diff-text,
@@ -1348,12 +1458,12 @@ button.gref:hover {
 }
 
 .diff-line.hunk {
-  background: rgba(122, 162, 247, 0.08);
+  background: rgb(var(--accent-rgb) / 0.08);
 }
 
 .diff-line.hunk .diff-text,
 .diff-line.hunk .diff-sign {
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 .diff-line.meta .diff-text {
@@ -1373,7 +1483,7 @@ button.gref:hover {
 }
 
 .graph-row.is-selected {
-  background: rgba(122, 162, 247, 0.1);
+  background: rgb(var(--accent-rgb) / 0.1);
   box-shadow: inset 2px 0 0 var(--accent);
 }
 
@@ -1391,7 +1501,7 @@ button.gref:hover {
   align-items: center;
   gap: 10px;
   padding: 8px 4px;
-  border-bottom: 1px solid rgba(34, 44, 60, 0.55);
+  border-bottom: 1px solid rgb(var(--border-rgb) / 0.55);
   font-size: 12.5px;
 }
 
@@ -1447,10 +1557,10 @@ button.gref:hover {
   font-size: 10.5px;
 }
 .ab .up {
-  color: var(--green);
+  color: var(--green-text);
 }
 .ab .down {
-  color: var(--amber);
+  color: var(--amber-text);
 }
 
 /* ---------- 提交列表 ---------- */
@@ -1461,7 +1571,7 @@ button.gref:hover {
   gap: 12px;
   align-items: baseline;
   padding: 9px 4px;
-  border-bottom: 1px solid rgba(34, 44, 60, 0.55);
+  border-bottom: 1px solid rgb(var(--border-rgb) / 0.55);
 }
 
 .commit-row:last-child {
@@ -1524,8 +1634,8 @@ button.gref:hover {
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  border: 2px solid rgba(148, 163, 184, 0.25);
-  border-top-color: var(--accent);
+  border: 2px solid rgb(var(--muted-rgb) / 0.25);
+  border-top-color: var(--accent-text);
   animation: spin 0.7s linear infinite;
 }
 
@@ -1547,7 +1657,7 @@ button.gref:hover {
   border-radius: 999px;
   background: linear-gradient(90deg, var(--accent-strong), var(--accent));
   transition: width 240ms ease;
-  box-shadow: 0 0 12px rgba(122, 162, 247, 0.5);
+  box-shadow: 0 0 12px rgb(var(--accent-rgb) / 0.5);
 }
 
 /* ---------- 对话框 ---------- */
@@ -1555,7 +1665,7 @@ button.gref:hover {
 .overlay {
   position: fixed;
   inset: 0;
-  background: rgba(4, 7, 12, 0.72);
+  background: var(--scrim);
   backdrop-filter: blur(3px);
   display: flex;
   align-items: center;
@@ -1576,7 +1686,7 @@ button.gref:hover {
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 16px;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+  box-shadow: var(--shadow-modal);
   overflow: hidden;
 }
 
@@ -1608,7 +1718,7 @@ button.gref:hover {
 }
 
 .error-text {
-  color: var(--red);
+  color: var(--red-text);
   font-size: 12px;
 }
 
@@ -1660,4 +1770,313 @@ button.gref:hover {
   .stat-value {
     font-size: 19px;
   }
+}
+
+/* ---------- 配色面板 ---------- */
+.theme-dock {
+  position: relative;
+  margin-bottom: 10px;
+}
+
+.theme-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 9px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border-soft);
+  background: rgb(var(--lift-rgb) / 0.03);
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.theme-trigger:hover {
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.theme-trigger-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent-bright), var(--accent));
+  box-shadow: 0 0 0 3px rgb(var(--accent-rgb) / 0.12);
+}
+
+.theme-pop {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 10px);
+  width: 240px;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  box-shadow: var(--shadow-pop);
+  z-index: 60;
+}
+
+.theme-pop-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+}
+
+.theme-close {
+  border: 0;
+  background: none;
+  color: var(--text-faint);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.theme-field {
+  margin-bottom: 14px;
+}
+
+.theme-field-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.theme-seg {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 10px;
+  border: 1px solid var(--border-soft);
+  background: var(--bg-input);
+}
+
+.theme-seg button {
+  flex: 1;
+  padding: 6px 0;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.theme-seg button.is-on {
+  background: rgb(var(--accent-rgb) / 0.16);
+  color: var(--accent-text);
+  box-shadow: inset 0 0 0 1px rgb(var(--accent-rgb) / 0.32);
+}
+
+.theme-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.theme-swatch {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: 8px;
+  border: 1px solid rgb(var(--lift-rgb) / 0.14);
+  cursor: pointer;
+}
+
+.theme-swatch.is-on {
+  box-shadow: 0 0 0 2px var(--panel), 0 0 0 3px var(--accent);
+}
+
+.theme-swatch-custom {
+  position: relative;
+  overflow: hidden;
+  background: conic-gradient(from 0deg, #f7768e, #e0af68, #9ece6a, #73daca, #7aa2f7, #bb9af7, #f7768e);
+}
+
+.theme-swatch-custom input {
+  position: absolute;
+  inset: -8px;
+  width: 200%;
+  height: 200%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.theme-reset {
+  margin-left: auto;
+  border: 0;
+  background: none;
+  color: var(--text-faint);
+  font: inherit;
+  font-size: 11px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.theme-hint {
+  margin: 2px 0 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text-faint);
+}
+/* 原生下拉的弹出层是浏览器自己画的，不吃页面背景：
+   不显式上色就会出现浅色主题下的白底浅字。color-scheme 也一并继承过去。 */
+select {
+  color-scheme: inherit;
+}
+
+select option {
+  background-color: var(--bg-input);
+  color: var(--text);
+}
+
+select option:checked {
+  background-color: var(--accent);
+  color: var(--accent-ink);
+}
+/* ---------- 自定义下拉 ---------- */
+.sel {
+  position: relative;
+  display: inline-flex;
+}
+
+.sel-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+  padding: 0 9px;
+  border-radius: 7px;
+  border: 1px solid var(--border-soft);
+  background: rgb(var(--lift-rgb) / 0.04);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.sel-trigger:hover {
+  border-color: var(--border);
+}
+
+.sel-trigger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.sel-trigger.is-open {
+  border-color: rgb(var(--accent-rgb) / 0.5);
+  box-shadow: 0 0 0 3px rgb(var(--accent-rgb) / 0.12);
+}
+
+.sel-value {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 210px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sel-value.is-placeholder {
+  color: var(--text-dim);
+}
+
+.sel-hint {
+  flex: none;
+  font-style: normal;
+  font-size: 10.5px;
+  color: var(--text-faint);
+}
+
+.sel-caret {
+  flex: none;
+  width: 0;
+  height: 0;
+  margin-left: 2px;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid var(--text-faint);
+}
+
+.sel-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 80;
+  min-width: 180px;
+  max-width: 300px;
+  max-height: 300px;
+  overflow-y: auto;
+  padding: 5px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  box-shadow: var(--shadow-pop);
+}
+
+.sel-pop.is-right {
+  left: auto;
+  right: 0;
+}
+
+.sel-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sel-option.is-active {
+  background: rgb(var(--lift-rgb) / 0.06);
+}
+
+.sel-option.is-selected {
+  color: var(--accent-text);
+}
+
+.sel-option-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sel-empty {
+  padding: 8px 9px;
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.op-select {
+  flex: 1 1 160px;
+  min-width: 160px;
+}
+
+.op-select .sel-trigger {
+  width: 100%;
+  height: 31px;
+  border-color: var(--border);
+  background: var(--bg-input);
+  font-size: 12.5px;
 }

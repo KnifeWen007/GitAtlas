@@ -21,8 +21,18 @@ import { Heatmap, HeatmapLegend } from './components/Heatmap.tsx';
 import { InspectorDrawer, type InspectTarget } from './components/InspectorDrawer.tsx';
 import { OperationPanel } from './components/OperationPanel.tsx';
 import { RefList } from './components/RefList.tsx';
+import { SelectMenu } from './components/SelectMenu.tsx';
 import { StatCard } from './components/StatCard.tsx';
+import { ThemePanel } from './components/ThemePanel.tsx';
 import { formatDate, formatNumber, formatRelative } from './format.ts';
+import {
+  applyTheme,
+  loadTheme,
+  saveTheme,
+  watchSystemTheme,
+  type ResolvedMode,
+  type ThemeSettings,
+} from './theme.ts';
 
 interface RepoDetail {
   summary: RepoSummary;
@@ -38,6 +48,17 @@ function toMessage(error: unknown): string {
 
 export function App() {
   const [health, setHealth] = useState<HealthResponse | null>(null);
+  // 配色：跟系统走的时候系统换主题也要跟着换
+  const [theme, setTheme] = useState<ThemeSettings>(() => loadTheme());
+  const [resolvedTheme, setResolvedTheme] = useState<ResolvedMode>('dark');
+
+  useEffect(() => {
+    setResolvedTheme(applyTheme(theme));
+    saveTheme(theme);
+  }, [theme]);
+
+  useEffect(() => watchSystemTheme(() => setResolvedTheme(applyTheme(theme))), [theme]);
+
   const [repos, setRepos] = useState<RepoRecord[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [detail, setDetail] = useState<RepoDetail | null>(null);
@@ -335,6 +356,7 @@ export function App() {
         </div>
 
         <div className="sidebar-footer">
+          <ThemePanel settings={theme} resolved={resolvedTheme} onChange={setTheme} />
           <div>
             <span className={`dot ${health?.git.available ? 'ok' : 'bad'}`} />
             Git {health?.git.version ?? '未检测到'}
@@ -540,23 +562,25 @@ function RepoView({
           <div className="graph-tools">
             <label className="graph-picker">
               <span>看哪条分支</span>
-              <select
+              <SelectMenu
                 value={focusRef ?? ''}
-                onChange={(event) => onFocus(event.target.value === '' ? null : event.target.value)}
-              >
-                <option value="">全部分支（总览）</option>
-                {refs
-                  .filter((ref) => ref.kind === 'branch' || ref.kind === 'remote')
-                  .slice()
-                  .sort((a, b) => Number(b.isHead) - Number(a.isHead) || a.shortName.localeCompare(b.shortName))
-                  .map((ref) => (
-                    <option key={ref.name} value={ref.shortName}>
-                      {ref.shortName}
-                      {ref.isHead ? ' · 当前' : ''}
-                      {ref.kind === 'remote' ? '（远端）' : ''}
-                    </option>
-                  ))}
-              </select>
+                align="right"
+                ariaLabel="看哪条分支"
+                placeholder="全部分支（总览）"
+                onChange={(next) => onFocus(next === '' ? null : next)}
+                options={[
+                  { value: '', label: '全部分支（总览）' },
+                  ...refs
+                    .filter((ref) => ref.kind === 'branch' || ref.kind === 'remote')
+                    .slice()
+                    .sort((a, b) => Number(b.isHead) - Number(a.isHead) || a.shortName.localeCompare(b.shortName))
+                    .map((ref) => ({
+                      value: ref.shortName,
+                      label: ref.shortName,
+                      ...(ref.isHead ? { hint: '当前' } : ref.kind === 'remote' ? { hint: '远端' } : {}),
+                    })),
+                ]}
+              />
             </label>
             <div className="graph-key">
               <span className="graph-key-item">

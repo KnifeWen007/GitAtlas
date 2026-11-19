@@ -12,22 +12,22 @@ const MAX_GUTTER = 520;
  * 再多就按黄金角撒色相，并压低饱和度，避免整屏荧光色。
  */
 const LANE_PALETTE = [
-  '#7aa2f7',
-  '#73daca',
-  '#bb9af7',
-  '#9ece6a',
-  '#e0af68',
-  '#f7768e',
-  '#7dcfff',
-  '#c8a9e8',
-  '#8fd6a8',
-  '#d9b48c',
+  'var(--lane-0)',
+  'var(--lane-1)',
+  'var(--lane-2)',
+  'var(--lane-3)',
+  'var(--lane-4)',
+  'var(--lane-5)',
+  'var(--lane-6)',
+  'var(--lane-7)',
+  'var(--lane-8)',
+  'var(--lane-9)',
 ];
 
 function laneColor(lane: number): string {
   if (lane < LANE_PALETTE.length) return LANE_PALETTE[lane]!;
   const hue = Math.round((lane * 137.5) % 360);
-  return `hsl(${hue} 42% 68%)`;
+  return `hsl(${hue} 40% 55%)`;
 }
 
 /** 引用名可能带 refs/heads/ 前缀，图上标签用的是短名，比较前先统一 */
@@ -200,7 +200,7 @@ export function GraphView({
                 width={laneWidth}
                 height={height}
                 rx={laneWidth / 2}
-                fill={focusMode ? 'rgba(122, 162, 247, 0.13)' : 'rgba(122, 162, 247, 0.07)'}
+                fill={focusMode ? 'rgb(var(--accent-rgb) / 0.13)' : 'rgb(var(--accent-rgb) / 0.07)'}
               />
             ) : null}
 
@@ -228,7 +228,7 @@ export function GraphView({
                   cx={cx}
                   cy={cy}
                   r={radius}
-                  fill="#0e121a"
+                  fill="var(--bg)"
                   stroke={color}
                   strokeWidth={2.2}
                   opacity={opacity}
