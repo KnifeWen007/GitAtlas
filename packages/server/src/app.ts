@@ -164,8 +164,8 @@ export async function startServer(options: ServerOptions): Promise<ServerHandle>
 
   const app = Fastify({
     logger: { level: options.logLevel ?? 'info' },
-    // 桌面端窗口不需要暴露内部信息
-    disableRequestLogging: options.logLevel === 'warn' || options.logLevel === 'error',
+    // 桌面端窗口不需要暴露内部信息：日志级别压到 warn 时本来就不会打请求日志，
+    // disableRequestLogging 这个旧参数在 fastify 6 里要移除，干脆不传
   });
 
   if (options.enableCors) {

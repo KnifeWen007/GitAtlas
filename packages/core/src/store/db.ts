@@ -90,6 +90,9 @@ export class Store {
       mkdirSync(dirname(file), { recursive: true });
     }
     this.db = new DatabaseSync(file);
+    // 先设忙等待：上一个进程（比如 node --watch 刚被杀掉的那个）还没放手时，
+    // 立刻切 WAL 会直接抛 "database is locked"，等几百毫秒通常就好了
+    this.db.exec('PRAGMA busy_timeout = 5000');
     this.db.exec('PRAGMA journal_mode = WAL');
     this.db.exec('PRAGMA synchronous = NORMAL');
     this.db.exec('PRAGMA foreign_keys = ON');
