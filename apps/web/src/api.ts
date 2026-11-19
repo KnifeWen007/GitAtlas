@@ -17,6 +17,10 @@ declare global {
       openPath(filePath: string): Promise<{ ok: boolean; error?: string }>;
       /** 在文件管理器里定位文件 */
       revealPath(filePath: string): Promise<{ ok: boolean; error?: string }>;
+      /** 读回配色设置（桌面端存在 userData 里） */
+      readTheme(): Promise<{ mode: string; accent: string | null } | null>;
+      /** 保存配色设置 */
+      writeTheme(settings: { mode: string; accent: string | null }): Promise<{ ok: boolean; error?: string }>;
     };
   }
 }

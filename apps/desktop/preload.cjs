@@ -19,4 +19,8 @@ contextBridge.exposeInMainWorld('gitatlas', {
   openPath: (filePath) => ipcRenderer.invoke('gitatlas:open-path', filePath),
   /** 在文件管理器里定位文件 */
   revealPath: (filePath) => ipcRenderer.invoke('gitatlas:reveal-path', filePath),
+  /** 读回配色设置；桌面端存在 userData/theme.json，换端口也不会丢 */
+  readTheme: () => ipcRenderer.invoke('gitatlas:theme-read'),
+  /** 保存配色设置 */
+  writeTheme: (settings) => ipcRenderer.invoke('gitatlas:theme-write', settings),
 });

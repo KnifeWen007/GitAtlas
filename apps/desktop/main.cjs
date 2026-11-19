@@ -11,7 +11,7 @@
  * 同源免 CORS、免配置 API 地址，也不需要 preload 暴露任何数据接口。
  */
 
-const { app, BrowserWindow, shell, dialog, Menu, ipcMain } = require('electron');
+const { app, BrowserWindow, shell, dialog, Menu, ipcMain, nativeTheme } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const { pathToFileURL } = require('node:url');
@@ -86,6 +86,43 @@ function resolveDataDir() {
   return portableDir ? path.join(portableDir, 'data') : path.join(app.getPath('userData'), 'data');
 }
 
+/* 配色单独存一份 JSON：内嵌服务每次随机端口，页面源跟着变，localStorage 记不住 */
+function themeFile() {
+  return path.join(resolveDataDir(), 'theme.json');
+}
+
+function readTheme() {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(themeFile(), 'utf8'));
+    const mode = parsed?.mode;
+    if (mode !== 'dark' && mode !== 'light' && mode !== 'system') return null;
+    const accent = typeof parsed?.accent === 'string' && /^#[0-9a-f]{6}$/i.test(parsed.accent) ? parsed.accent : null;
+    return { mode, accent };
+  } catch {
+    return null;
+  }
+}
+
+function themeIsLight() {
+  const mode = readTheme()?.mode ?? 'dark';
+  if (mode === 'system') return !nativeTheme.shouldUseDarkColors;
+  return mode === 'light';
+}
+
+function writeTheme(settings) {
+  const mode = settings?.mode;
+  if (mode !== 'dark' && mode !== 'light' && mode !== 'system') return { ok: false, error: '配色模式不合法' };
+  const accent = typeof settings?.accent === 'string' && /^#[0-9a-f]{6}$/i.test(settings.accent) ? settings.accent : null;
+  try {
+    fs.mkdirSync(resolveDataDir(), { recursive: true });
+    fs.writeFileSync(themeFile(), JSON.stringify({ mode, accent }), 'utf8');
+    return { ok: true };
+  } catch (error) {
+    log(`配色写入失败：${error.message}`);
+    return { ok: false, error: error.message };
+  }
+}
+
 async function startBackend() {
   const dir = resolveDataDir();
   fs.mkdirSync(dir, { recursive: true });
@@ -133,7 +170,7 @@ async function createWindow() {
     height: 940,
     minWidth: 1040,
     minHeight: 660,
-    backgroundColor: '#080b12',
+    backgroundColor: themeIsLight() ? '#f4f6fb' : '#080b12',
     title: 'GitAtlas',
     show: false,
     autoHideMenuBar: true,
@@ -205,6 +242,17 @@ ipcMain.handle('gitatlas:reveal-path', async (_event, filePath) => {
   shell.showItemInFolder(filePath);
   log(`已在文件夹中定位：${filePath}`);
   return { ok: true };
+});
+
+/* 配色：读写 userData/theme.json，同时把窗口底色跟着换，切浅色时不会留一圈黑边 */
+ipcMain.handle('gitatlas:theme-read', () => readTheme());
+
+ipcMain.handle('gitatlas:theme-write', (_event, settings) => {
+  const result = writeTheme(settings);
+  if (result.ok && mainWindow) {
+    mainWindow.setBackgroundColor(themeIsLight() ? '#f4f6fb' : '#080b12');
+  }
+  return result;
 });
 
 app.whenReady().then(async () => {

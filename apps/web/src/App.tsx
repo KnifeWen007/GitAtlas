@@ -46,10 +46,10 @@ function toMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-export function App() {
+export function App({ initialTheme }: { initialTheme?: ThemeSettings } = {}) {
   const [health, setHealth] = useState<HealthResponse | null>(null);
   // 配色：跟系统走的时候系统换主题也要跟着换
-  const [theme, setTheme] = useState<ThemeSettings>(() => loadTheme());
+  const [theme, setTheme] = useState<ThemeSettings>(() => initialTheme ?? loadTheme());
   const [resolvedTheme, setResolvedTheme] = useState<ResolvedMode>('dark');
 
   useEffect(() => {

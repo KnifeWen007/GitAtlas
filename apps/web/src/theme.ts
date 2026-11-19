@@ -91,17 +91,40 @@ export function resolvedMode(mode: ThemeMode): ResolvedMode {
   return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
 }
 
+function parseSettings(input: unknown): ThemeSettings {
+  const parsed = (input ?? {}) as Partial<ThemeSettings>;
+  const mode: ThemeMode =
+    parsed.mode === 'light' || parsed.mode === 'system' || parsed.mode === 'dark' ? parsed.mode : 'dark';
+  const accent = typeof parsed.accent === 'string' ? normalizeHex(parsed.accent) : null;
+  return { mode, accent };
+}
+
 export function loadTheme(): ThemeSettings {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return DEFAULTS;
-    const parsed = JSON.parse(raw) as Partial<ThemeSettings>;
-    const mode: ThemeMode =
-      parsed.mode === 'light' || parsed.mode === 'system' || parsed.mode === 'dark' ? parsed.mode : 'dark';
-    const accent = typeof parsed.accent === 'string' ? normalizeHex(parsed.accent) : null;
-    return { mode, accent };
+    return parseSettings(JSON.parse(raw));
   } catch {
     return DEFAULTS;
+  }
+}
+
+/**
+ * 桌面端优先读 userData 里的 theme.json。
+ *
+ * 内嵌服务的端口是随机的，页面源（http://127.0.0.1:端口）每次都不同，
+ * localStorage 会跟着换域，光靠它记不住配色。
+ */
+export async function loadThemeAsync(): Promise<ThemeSettings> {
+  const local = loadTheme();
+  const bridge = window.gitatlas;
+  if (!bridge?.readTheme) return local;
+  try {
+    const stored = await bridge.readTheme();
+    if (!stored) return local;
+    return parseSettings(stored);
+  } catch {
+    return local;
   }
 }
 
@@ -111,6 +134,7 @@ export function saveTheme(settings: ThemeSettings): void {
   } catch {
     // 隐私模式下写不进去，界面照样能切，下次开还是默认
   }
+  void window.gitatlas?.writeTheme?.({ mode: settings.mode, accent: settings.accent });
 }
 
 /**
