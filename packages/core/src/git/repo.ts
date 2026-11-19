@@ -63,13 +63,25 @@ export async function listRefs(reader: GitReader): Promise<RawRef[]> {
     // annotated tag 的 committerdate 为空，真正的日期在 taggerdate
     '%(taggerdate:iso-strict)',
     '%(HEAD)',
+    // 解引用后的对象：annotated tag 指向的是 tag 对象，剥一层才是提交
+    '%(*objecttype)',
+    '%(*objectname)',
   ].join('%00');
 
   const refs: RawRef[] = [];
   for await (const line of reader.lines(['for-each-ref', `--format=${format}`])) {
     if (line.trim().length === 0) continue;
-    const [name = '', shortName = '', targetSha = '', objectType = '', commitDate = '', tagDate = '', head = ''] =
-      line.split('\x00');
+    const [
+      name = '',
+      shortName = '',
+      objectSha = '',
+      objectType = '',
+      commitDate = '',
+      tagDate = '',
+      head = '',
+      peeledType = '',
+      peeledSha = '',
+    ] = line.split('\x00');
 
     let kind: RawRef['kind'];
     if (name.startsWith('refs/heads/')) kind = 'branch';
@@ -80,6 +92,9 @@ export async function listRefs(reader: GitReader): Promise<RawRef[]> {
     // 远端 origin/HEAD 是符号引用，跳过
     if (kind === 'remote' && shortName.endsWith('/HEAD')) continue;
 
+    // annotated tag：objectname 是 tag 对象，提交图谱和状态都要用剥开后的提交 sha，
+    // 否则标签会"挂"在一个不存在的提交上，图上永远不显示。
+    const targetSha = peeledType === 'commit' && peeledSha.length > 0 ? peeledSha : objectSha;
     const stamp = commitDate.length > 0 ? commitDate : tagDate;
 
     refs.push({
