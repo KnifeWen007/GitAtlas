@@ -1,20 +1,11 @@
 import { useState } from 'react';
 import type { GitActionBody, RemoteInfo } from '../api.ts';
+import { webUrlOf } from '../format.ts';
 
 interface RemotePanelProps {
   remotes: RemoteInfo[];
   busy: boolean;
   onRun: (body: GitActionBody) => void;
-}
-
-/** 把 git 的几种地址写法还原成能点开的网页地址 */
-export function webUrlOf(remoteUrl: string): string | null {
-  const ssh = /^git@([^:]+):(.+?)(?:\.git)?$/.exec(remoteUrl.trim());
-  if (ssh) return `https://${ssh[1]}/${ssh[2]}`;
-  const sshProtocol = /^ssh:\/\/git@([^/]+)\/(.+?)(?:\.git)?$/.exec(remoteUrl.trim());
-  if (sshProtocol) return `https://${sshProtocol[1]}/${sshProtocol[2]}`;
-  if (/^https?:\/\//i.test(remoteUrl.trim())) return remoteUrl.trim().replace(/\.git$/, '');
-  return null;
 }
 
 /** 长地址只留域名和仓库名，够认人就行 */

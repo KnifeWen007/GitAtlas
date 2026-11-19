@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   api,
   type BranchScope,
@@ -17,16 +17,18 @@ import {
 } from './api.ts';
 import { AddRepoDialog } from './components/AddRepoDialog.tsx';
 import { CommitList } from './components/CommitList.tsx';
+import { ConfirmDialog, type ConfirmRequest } from './components/ConfirmDialog.tsx';
 import { GraphView } from './components/GraphView.tsx';
 import { Heatmap, HeatmapLegend } from './components/Heatmap.tsx';
 import { InspectorDrawer, type InspectTarget } from './components/InspectorDrawer.tsx';
 import { OperationPanel } from './components/OperationPanel.tsx';
-import { webUrlOf } from './components/RemotePanel.tsx';
 import { RefList } from './components/RefList.tsx';
+import { RepoSkeleton } from './components/RepoSkeleton.tsx';
 import { SelectMenu } from './components/SelectMenu.tsx';
 import { StatCard } from './components/StatCard.tsx';
 import { ThemePanel } from './components/ThemePanel.tsx';
-import { formatDate, formatNumber, formatRelative } from './format.ts';
+import { Toasts, type ToastItem } from './components/Toasts.tsx';
+import { formatDate, formatNumber, formatRelative, webUrlOf, weeklyBuckets } from './format.ts';
 import {
   applyTheme,
   loadTheme,
@@ -47,6 +49,12 @@ interface RepoDetail {
 function toMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
+
+const HEAT_RANGES = [
+  { months: 3, label: '近 3 个月' },
+  { months: 6, label: '近半年' },
+  { months: 12, label: '近一年' },
+];
 
 export function App({ initialTheme }: { initialTheme?: ThemeSettings } = {}) {
   const [health, setHealth] = useState<HealthResponse | null>(null);
@@ -80,7 +88,6 @@ export function App({ initialTheme }: { initialTheme?: ThemeSettings } = {}) {
   const [snapshots, setSnapshots] = useState<SnapshotEntry[]>([]);
   const [remotes, setRemotes] = useState<RemoteInfo[]>([]);
   const [opBusy, setOpBusy] = useState(false);
-  const [opMessage, setOpMessage] = useState<{ text: string; tone: 'ok' | 'err' } | null>(null);
   /** 右侧检查器：工作区文件差异或某次提交的文件清单 */
   const [inspect, setInspect] = useState<InspectTarget | null>(null);
   /** 记住已经载入的仓库，用来区分"换仓库"和"同一仓库刷新" */
@@ -89,6 +96,36 @@ export function App({ initialTheme }: { initialTheme?: ThemeSettings } = {}) {
   const [focusRef, setFocusRef] = useState<string | null>(null);
   /** 聚焦分支能到达的提交 + 相对默认分支的领先落后 */
   const [scope, setScope] = useState<BranchScope | null>(null);
+
+  // 轻提示与确认框
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const toastSeq = useRef(0);
+  const toastTimers = useRef<number[]>([]);
+  const [confirmRequest, setConfirmRequest] = useState<ConfirmRequest | null>(null);
+
+  const dismissToast = useCallback((id: number) => {
+    setToasts((current) => current.filter((item) => item.id !== id));
+  }, []);
+
+  const pushToast = useCallback(
+    (text: string, tone: 'ok' | 'err' | 'info' = 'info') => {
+      if (!text) return;
+      toastSeq.current += 1;
+      const id = toastSeq.current;
+      // 最多同时留三条，旧的先走，免得盖住图谱
+      setToasts((current) => [...current.slice(-2), { id, text, tone }]);
+      const timer = window.setTimeout(() => dismissToast(id), tone === 'err' ? 8000 : 4500);
+      toastTimers.current.push(timer);
+    },
+    [dismissToast],
+  );
+
+  useEffect(
+    () => () => {
+      for (const timer of toastTimers.current) window.clearTimeout(timer);
+    },
+    [],
+  );
 
   const refreshRepos = useCallback(async () => {
     const list = await api.repos();
@@ -125,11 +162,12 @@ export function App({ initialTheme }: { initialTheme?: ThemeSettings } = {}) {
       loadedRepoRef.current = null;
       return;
     }
-    // 只在真正换了仓库时关掉检查器；点保存、刷新状态也会重跑这个副作用，
-    // 那时关掉抽屉会让用户正在编辑的内容凭空消失
+    // 只在真正换了仓库时清空旧数据；同一仓库刷新时保留当前画面，避免整页闪成骨架
     if (loadedRepoRef.current !== selectedId) {
       loadedRepoRef.current = selectedId;
       setInspect(null);
+      setDetail(null);
+      setScope(null);
       // 换仓库时回到总览，否则会拿新仓库的图去套旧分支
       setFocusRef(null);
     }
@@ -228,6 +266,7 @@ export function App({ initialTheme }: { initialTheme?: ThemeSettings } = {}) {
           else setSelectedId((prev) => prev ?? list[0]?.id ?? null);
         } else {
           setReloadKey((key) => key + 1);
+          pushToast('索引完成，图谱已经是最新的', 'ok');
         }
         setAfterTask(null);
       } catch (error) {
@@ -243,7 +282,7 @@ export function App({ initialTheme }: { initialTheme?: ThemeSettings } = {}) {
       cancelled = true;
       if (timer) window.clearTimeout(timer);
     };
-  }, [taskId, afterTask, refreshRepos]);
+  }, [taskId, afterTask, refreshRepos, pushToast]);
 
   const handleAdd = async (path: string) => {
     setAddError(null);
@@ -280,11 +319,10 @@ export function App({ initialTheme }: { initialTheme?: ThemeSettings } = {}) {
   const handleGit = async (body: GitActionBody) => {
     if (selectedId === null || opBusy) return;
     setOpBusy(true);
-    setOpMessage(null);
     try {
       const result = await api.git(selectedId, body);
       const text = result.snapshot ? `${result.message}（已自动留回滚点）` : result.message;
-      setOpMessage({ text, tone: result.ok ? 'ok' : 'err' });
+      pushToast(text, result.ok ? 'ok' : 'err');
 
       // 切分支或建分支后，图谱直接跟过去，省得自己再滚一遍找自己的线
       if (result.ok && body.action === 'switch' && body.branch) setFocusRef(body.branch);
@@ -299,7 +337,7 @@ export function App({ initialTheme }: { initialTheme?: ThemeSettings } = {}) {
         setReloadKey((key) => key + 1);
       }
     } catch (error) {
-      setOpMessage({ text: toMessage(error), tone: 'err' });
+      pushToast(toMessage(error), 'err');
       setReloadKey((key) => key + 1);
     } finally {
       setOpBusy(false);
@@ -308,18 +346,33 @@ export function App({ initialTheme }: { initialTheme?: ThemeSettings } = {}) {
 
   const handleRemove = async () => {
     if (selectedId === null || !detail) return;
-    const confirmed = window.confirm(`从 GitAtlas 移除「${detail.summary.name}」？（不影响仓库本身）`);
-    if (!confirmed) return;
-    try {
-      await api.remove(selectedId);
-      const list = await refreshRepos();
-      setSelectedId(list[0]?.id ?? null);
-    } catch (error) {
-      setGlobalError(toMessage(error));
-    }
+    const removedName = detail.summary.name;
+    setConfirmRequest({
+      title: '从列表里移除这个仓库？',
+      body: `只会把「${removedName}」从 GitAtlas 的仓库列表里去掉，磁盘上的仓库和提交一条都不会动。想加回来时再选一次目录就行。`,
+      confirmLabel: '移除',
+      danger: true,
+      onConfirm: () => {
+        void (async () => {
+          try {
+            await api.remove(selectedId);
+            const list = await refreshRepos();
+            setSelectedId(list[0]?.id ?? null);
+            pushToast(`已移除「${removedName}」`, 'ok');
+          } catch (error) {
+            pushToast(toMessage(error), 'err');
+          }
+        })();
+      },
+    });
   };
 
   const activeRepo = repos.find((repo) => repo.id === selectedId) ?? null;
+
+  // 标题栏跟着当前仓库走，任务栏上也能分清窗口
+  useEffect(() => {
+    document.title = detail ? `${detail.summary.name} · GitAtlas` : 'GitAtlas · Git 协作图谱';
+  }, [detail]);
 
   return (
     <div className="app">
@@ -346,6 +399,7 @@ export function App({ initialTheme }: { initialTheme?: ThemeSettings } = {}) {
               key={repo.id}
               className={`repo-item ${repo.id === selectedId ? 'active' : ''}`}
               onClick={() => setSelectedId(repo.id)}
+              aria-current={repo.id === selectedId ? 'true' : undefined}
             >
               <span className="repo-item-name">{repo.name}</span>
               <span className="repo-item-meta">
@@ -353,11 +407,7 @@ export function App({ initialTheme }: { initialTheme?: ThemeSettings } = {}) {
               </span>
             </button>
           ))}
-          {repos.length === 0 ? (
-            <div className="sidebar-label" style={{ padding: '8px 8px 0' }}>
-              还没有仓库
-            </div>
-          ) : null}
+          {repos.length === 0 ? <div className="sidebar-empty">还没有仓库</div> : null}
         </div>
 
         <div className="sidebar-footer">
@@ -371,17 +421,25 @@ export function App({ initialTheme }: { initialTheme?: ThemeSettings } = {}) {
       </aside>
 
       <main className="main">
+        {loadingDetail && detail !== null ? <div className="refresh-line" aria-hidden="true" /> : null}
+
         {globalError ? (
-          <div className="card" style={{ padding: '10px 16px', marginBottom: 14, borderColor: 'rgba(247,118,142,0.4)' }}>
-            <span className="error-text">{globalError}</span>
+          <div className="error-banner" role="alert">
+            <span>{globalError}</span>
+            <button className="btn btn-xs btn-ghost" onClick={() => setGlobalError(null)}>
+              知道了
+            </button>
           </div>
         ) : null}
 
         {repos.length === 0 ? (
           <div className="empty">
+            <div className="empty-badge" aria-hidden="true">
+              <img src="/logo.png" alt="" width={46} height={46} draggable={false} />
+            </div>
             <div className="empty-title">把仓库变成一张能看懂的图</div>
             <div className="empty-desc">
-              添加一个本地 Git 仓库，GitAtlas 会解析提交历史、聚合活动节奏，并指出分支与代码里的问题。
+              添加一个本地 Git 仓库，GitAtlas 会解析提交历史、聚合活动节奏，并指出分支与代码里的问题。全程不用敲命令。
             </div>
             <div className="empty-actions">
               <button className="btn btn-primary" onClick={() => setDialogOpen(true)}>
@@ -389,15 +447,13 @@ export function App({ initialTheme }: { initialTheme?: ThemeSettings } = {}) {
               </button>
             </div>
           </div>
-        ) : detail === null || loadingDetail ? (
-          <div className="empty">
-            <div className="spinner" />
-            <div className="empty-desc">正在加载仓库数据…</div>
-          </div>
+        ) : detail === null ? (
+          <RepoSkeleton />
         ) : (
           <RepoView
             detail={detail}
             busy={busy}
+            refreshing={loadingDetail}
             onReindex={() => void handleReindex()}
             onRemove={() => void handleRemove()}
             lastIndexed={activeRepo?.lastIndexedAt ?? detail.summary.lastIndexedAt}
@@ -405,14 +461,15 @@ export function App({ initialTheme }: { initialTheme?: ThemeSettings } = {}) {
             snapshots={snapshots}
             remotes={remotes}
             opBusy={opBusy}
-            opMessage={opMessage}
             onGit={(body) => void handleGit(body)}
+            onConfirm={setConfirmRequest}
             onRefreshStatus={() => setReloadKey((key) => key + 1)}
             onInspect={setInspect}
             selectedSha={inspect?.kind === 'commit' ? inspect.sha : null}
             focusRef={focusRef}
             scope={scope}
             onFocus={setFocusRef}
+            onToast={pushToast}
           />
         )}
       </main>
@@ -440,6 +497,9 @@ export function App({ initialTheme }: { initialTheme?: ThemeSettings } = {}) {
         onGit={(body) => void handleGit(body)}
         onRefreshStatus={() => setReloadKey((key) => key + 1)}
       />
+
+      <ConfirmDialog request={confirmRequest} onCancel={() => setConfirmRequest(null)} />
+      <Toasts items={toasts} onDismiss={dismissToast} />
     </div>
   );
 }
@@ -447,6 +507,7 @@ export function App({ initialTheme }: { initialTheme?: ThemeSettings } = {}) {
 interface RepoViewProps {
   detail: RepoDetail;
   busy: boolean;
+  refreshing: boolean;
   lastIndexed: string | null;
   onReindex: () => void;
   onRemove: () => void;
@@ -454,8 +515,8 @@ interface RepoViewProps {
   snapshots: SnapshotEntry[];
   remotes: RemoteInfo[];
   opBusy: boolean;
-  opMessage: { text: string; tone: 'ok' | 'err' } | null;
   onGit: (body: GitActionBody) => void;
+  onConfirm: (request: ConfirmRequest) => void;
   onRefreshStatus: () => void;
   onInspect: (target: InspectTarget) => void;
   selectedSha: string | null;
@@ -463,11 +524,13 @@ interface RepoViewProps {
   focusRef: string | null;
   scope: BranchScope | null;
   onFocus: (ref: string | null) => void;
+  onToast: (text: string, tone?: 'ok' | 'err' | 'info') => void;
 }
 
 function RepoView({
   detail,
   busy,
+  refreshing,
   lastIndexed,
   onReindex,
   onRemove,
@@ -475,16 +538,18 @@ function RepoView({
   snapshots,
   remotes,
   opBusy,
-  opMessage,
   onGit,
+  onConfirm,
   onRefreshStatus,
   onInspect,
   selectedSha,
   focusRef,
   scope,
   onFocus,
+  onToast,
 }: RepoViewProps) {
   const { summary, timeline, refs, commits, graph } = detail;
+  const [heatMonths, setHeatMonths] = useState(12);
   const totalChanges = summary.insertions + summary.deletions;
   /** 页头显示 origin（没有就退到第一个远端），点一下直接开网页 */
   const originRemote = remotes.find((remote) => remote.name === 'origin') ?? remotes[0] ?? null;
@@ -496,6 +561,26 @@ function RepoView({
   const branchCount = refs.filter((ref) => ref.kind === 'branch').length;
   const tagCount = refs.filter((ref) => ref.kind === 'tag').length;
 
+  // 索引之后又来了新提交：让"数据旧了"这件事在页头就看得见
+  const stale = Boolean(
+    summary.lastCommitAt && lastIndexed && new Date(summary.lastCommitAt) > new Date(lastIndexed),
+  );
+
+  const spark = useMemo(() => weeklyBuckets(timeline.days, 12), [timeline.days]);
+  const heatDays = useMemo(() => {
+    if (heatMonths >= 12) return timeline.days;
+    return timeline.days.slice(-Math.round(heatMonths * 30.44));
+  }, [timeline.days, heatMonths]);
+
+  const copyPath = async () => {
+    try {
+      await navigator.clipboard.writeText(summary.path);
+      onToast('仓库路径已复制', 'ok');
+    } catch {
+      onToast('复制失败，可以手动选中路径', 'err');
+    }
+  };
+
   return (
     <>
       <header className="main-header">
@@ -506,9 +591,16 @@ function RepoView({
             {summary.staleBranches > 0 ? (
               <span className="badge badge-warn">{summary.staleBranches} 条僵化分支</span>
             ) : null}
+            {stale ? (
+              <span className="badge badge-warn" title="本地 HEAD 比上次索引更新">
+                有新提交未索引
+              </span>
+            ) : null}
           </h1>
           <div className="repo-path">
-            {summary.path}
+            <button className="repo-path-text mono" onClick={() => void copyPath()} title="点击复制路径">
+              {summary.path}
+            </button>
             {originWeb ? (
               <a className="repo-link" href={originWeb} target="_blank" rel="noreferrer" title={`在浏览器打开 ${originWeb}`}>
                 {originWeb.replace(/^https?:\/\//, '').replace(/\/$/, '')}
@@ -519,7 +611,9 @@ function RepoView({
           </div>
         </div>
         <div className="header-actions">
-          <span className="badge">索引于 {formatRelative(lastIndexed)}</span>
+          <span className="badge" title={lastIndexed ? new Date(lastIndexed).toLocaleString('zh-CN') : ''}>
+            索引于 {formatRelative(lastIndexed)}
+          </span>
           <button className="btn" onClick={onReindex} disabled={busy}>
             {busy ? <span className="spinner" /> : '重新索引'}
           </button>
@@ -529,11 +623,12 @@ function RepoView({
         </div>
       </header>
 
-      <div className="stat-grid">
+      <div className={`stat-grid${refreshing ? ' is-refreshing' : ''}`}>
         <StatCard
           label="提交总数"
           value={formatNumber(summary.commitCount)}
           sub={`${formatNumber(summary.mergeCount)} 次合并`}
+          spark={spark}
         />
         <StatCard
           label="贡献者"
@@ -541,12 +636,18 @@ function RepoView({
           sub={`近 30 天 ${summary.activeAuthors30d} 人`}
           tone="violet"
         />
-        <StatCard label="分支 / 标签" value={`${summary.branchCount} / ${summary.tagCount}`} sub="含远端引用" tone="green" />
+        <StatCard
+          label="分支 / 标签"
+          value={`${summary.branchCount} / ${summary.tagCount}`}
+          sub="含远端引用"
+          tone="green"
+        />
         <StatCard
           label="代码变动"
           value={`+${formatNumber(summary.insertions)}`}
           sub={`−${formatNumber(summary.deletions)} 行删除`}
           tone="amber"
+          ratio={{ up: summary.insertions, down: summary.deletions }}
         />
         <StatCard
           label="历史跨度"
@@ -567,8 +668,8 @@ function RepoView({
         snapshots={snapshots}
         remotes={remotes}
         busy={opBusy || busy}
-        message={opMessage}
         onRun={onGit}
+        onConfirm={onConfirm}
         onRefresh={onRefreshStatus}
         onOpenDiff={(path, staged) => onInspect({ kind: 'working', path, staged })}
         onEditConflict={(path) => onInspect({ kind: 'conflict', path })}
@@ -577,7 +678,7 @@ function RepoView({
       <div className="card">
         <div className="card-head">
           <div className="card-title">
-            提交图谱
+            <span className="card-name">提交图谱</span>
             <span className="hint">每条泳道是一条提交链，弧线是合并；点任意一行看这次改了哪些文件</span>
           </div>
           <div className="graph-tools">
@@ -629,15 +730,30 @@ function RepoView({
       <div className="card">
         <div className="card-head">
           <div className="card-title">
-            提交活动
+            <span className="card-name">提交活动</span>
             <span className="hint">
               {timeline.from} → {timeline.to}
             </span>
           </div>
-          <HeatmapLegend />
+          <div className="heat-tools">
+            <div className="seg" role="group" aria-label="热力图区间">
+              {HEAT_RANGES.map((range) => (
+                <button
+                  key={range.months}
+                  type="button"
+                  className={heatMonths === range.months ? 'is-on' : ''}
+                  aria-pressed={heatMonths === range.months}
+                  onClick={() => setHeatMonths(range.months)}
+                >
+                  {range.label}
+                </button>
+              ))}
+            </div>
+            <HeatmapLegend />
+          </div>
         </div>
         <div className="card-body">
-          <Heatmap days={timeline.days} />
+          <Heatmap days={heatDays} />
         </div>
       </div>
 
@@ -645,26 +761,30 @@ function RepoView({
         <div className="card">
           <div className="card-head">
             <div className="card-title">
-              分支与标签
+              <span className="card-name">分支与标签</span>
               <span className="hint">
                 {branchCount} 分支 · {tagCount} 标签
               </span>
             </div>
           </div>
           <div className="card-body">
-            <RefList refs={refs} />
+            <RefList refs={refs} onFocus={(ref) => onFocus(ref)} />
           </div>
         </div>
 
         <div className="card">
           <div className="card-head">
             <div className="card-title">
-              最近提交
-              <span className="hint">按作者时间倒序</span>
+              <span className="card-name">最近提交</span>
+              <span className="hint">按作者时间倒序，点一行看改动</span>
             </div>
           </div>
           <div className="card-body">
-            <CommitList commits={commits} />
+            <CommitList
+              commits={commits}
+              selectedSha={selectedSha}
+              onSelect={(commit) => onInspect({ kind: 'commit', ...commit })}
+            />
           </div>
         </div>
       </div>

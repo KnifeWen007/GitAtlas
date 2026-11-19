@@ -7,6 +7,7 @@ import type {
   SnapshotEntry,
   WorkingFile,
 } from '../api.ts';
+import type { ConfirmRequest } from './ConfirmDialog.tsx';
 import { CommitComposer } from './CommitComposer.tsx';
 import { RemotePanel } from './RemotePanel.tsx';
 import { SelectMenu } from './SelectMenu.tsx';
@@ -19,8 +20,9 @@ interface OperationPanelProps {
   snapshots: SnapshotEntry[];
   remotes: RemoteInfo[];
   busy: boolean;
-  message: { text: string; tone: 'ok' | 'err' } | null;
   onRun: (body: GitActionBody) => void;
+  /** 危险操作先过一遍应用内确认框 */
+  onConfirm: (request: ConfirmRequest) => void;
   onRefresh: () => void;
   /** 点文件看差异：staged 决定看暂存区还是工作区 */
   onOpenDiff: (path: string, staged: boolean) => void;
@@ -113,8 +115,8 @@ export function OperationPanel({
   snapshots,
   remotes,
   busy,
-  message,
   onRun,
+  onConfirm,
   onRefresh,
   onOpenDiff,
   onEditConflict,
@@ -128,7 +130,8 @@ export function OperationPanel({
 
   /** 单开 / 全部展开；默认单开，点一个开一个 */
   const [layout, setLayout] = useState<'one' | 'all'>(readLayout);
-  const [openId, setOpenId] = useState<string>('sync');
+  /** 默认全部收起：操作台先当状态栏看，要用哪块再点开，图谱才是首屏主角 */
+  const [openId, setOpenId] = useState<string>('');
   const [closed, setClosed] = useState<Set<string>>(new Set());
 
   const toggle = (id: string) => {
@@ -185,6 +188,46 @@ export function OperationPanel({
     onRun(body);
   };
 
+  /** 会让提交图挪位置的三个操作，先让人看清楚代价 */
+  const askAbort = () =>
+    onConfirm({
+      title: '放弃这次操作？',
+      body: '合并 / 变基 / 拣选进行中的改动会回到开始之前，已经自动留下的回滚点不会丢。',
+      confirmLabel: '放弃',
+      danger: true,
+      onConfirm: () => run({ action: 'abortMerge' }),
+    });
+
+  const askDeleteBranch = () =>
+    onConfirm({
+      title: `删除分支 ${picked}？`,
+      body: '分支名会立刻消失。分支上的提交本身还在仓库里，但之后要靠提交号才找得回来。',
+      confirmLabel: '删除分支',
+      danger: true,
+      onConfirm: () => run({ action: 'deleteBranch', name: picked }),
+    });
+
+  const askDeleteTag = () =>
+    onConfirm({
+      title: `删除标签 ${pickedTag}？`,
+      body: '标签只是给某个提交起的名字，删掉不会影响提交内容，但别人就看不到这个版本号了。',
+      confirmLabel: '删除标签',
+      danger: true,
+      onConfirm: () => {
+        run({ action: 'deleteTag', name: pickedTag });
+        setPickedTag('');
+      },
+    });
+
+  const askRestore = (snapshot: SnapshotEntry) =>
+    onConfirm({
+      title: '回到这个回滚点？',
+      body: `当前分支会指回 ${snapshot.sha.slice(0, 7)} 这个备份。之后的提交还能从提交号找回来，但图谱上的位置会变。`,
+      confirmLabel: '回到这个回滚点',
+      danger: true,
+      onConfirm: () => run({ action: 'restore', ref: snapshot.ref }),
+    });
+
   const syncSummary = status
     ? [status.ahead > 0 ? `↑${status.ahead}` : '', status.behind > 0 ? `↓${status.behind}` : '']
         .filter(Boolean)
@@ -195,7 +238,7 @@ export function OperationPanel({
     <section className="card op-panel">
       <div className="card-head">
         <div className="card-title">
-          操作台
+          <span className="card-name">操作台</span>
           <span className="hint">点标题展开一个模块，也可以全部摊开</span>
         </div>
         <div className="op-head-tools">
@@ -224,8 +267,6 @@ export function OperationPanel({
       </div>
 
       <div className="card-body op-body">
-        {message ? <div className={`op-message ${message.tone}`}>{message.text}</div> : null}
-
         {status ? (
           <div className="op-status">
             <span className="op-chip branch">{status.branch ?? '游离 HEAD（不在分支上）'}</span>
@@ -277,7 +318,7 @@ export function OperationPanel({
               <button className="btn btn-sm" disabled={busy} onClick={() => run({ action: 'concludeMerge' })}>
                 都处理完了，完成合并
               </button>
-              <button className="btn btn-sm btn-ghost" disabled={busy} onClick={() => run({ action: 'abortMerge' })}>
+              <button className="btn btn-sm btn-ghost" disabled={busy} onClick={askAbort}>
                 放弃这次合并
               </button>
             </div>
@@ -294,7 +335,7 @@ export function OperationPanel({
               <button className="btn btn-sm btn-accent" disabled={busy} onClick={() => run({ action: 'concludeMerge' })}>
                 提交合并结果
               </button>
-              <button className="btn btn-sm btn-ghost" disabled={busy} onClick={() => run({ action: 'abortMerge' })}>
+              <button className="btn btn-sm btn-ghost" disabled={busy} onClick={askAbort}>
                 放弃这次合并
               </button>
             </div>
@@ -308,17 +349,18 @@ export function OperationPanel({
               <span className="hint">这一步还没收尾，处理完冲突后需要继续或放弃</span>
             </div>
             <div className="op-buttons">
-              <button className="btn btn-sm btn-ghost" disabled={busy} onClick={() => run({ action: 'abortMerge' })}>
+              <button className="btn btn-sm btn-ghost" disabled={busy} onClick={askAbort}>
                 放弃这次操作
               </button>
             </div>
           </div>
         ) : null}
 
+        <div className="op-sections">
         <OpSection
           id="sync"
           title="同步"
-          hint="和多远的仓库对一次账"
+          hint="和远端仓库对一次账"
           summary={syncSummary}
           open={isOpen('sync')}
           onToggle={toggle}
@@ -399,7 +441,7 @@ export function OperationPanel({
             <button
               className="btn btn-sm btn-ghost"
               disabled={busy || !picked}
-              onClick={() => run({ action: 'deleteBranch', name: picked })}
+              onClick={askDeleteBranch}
             >
               删除
             </button>
@@ -487,10 +529,7 @@ export function OperationPanel({
             <button
               className="btn btn-sm btn-ghost"
               disabled={busy || !pickedTag}
-              onClick={() => {
-                run({ action: 'deleteTag', name: pickedTag });
-                setPickedTag('');
-              }}
+              onClick={askDeleteTag}
             >
               删除标签
             </button>
@@ -603,7 +642,7 @@ export function OperationPanel({
                   <button
                     className="btn btn-xs btn-ghost"
                     disabled={busy}
-                    onClick={() => run({ action: 'restore', ref: snapshot.ref })}
+                    onClick={() => askRestore(snapshot)}
                   >
                     恢复到此刻
                   </button>
@@ -612,6 +651,7 @@ export function OperationPanel({
             ))}
           </OpSection>
         ) : null}
+        </div>
       </div>
     </section>
   );

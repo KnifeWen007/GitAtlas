@@ -1,12 +1,14 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import type { BranchScope, GraphResponse } from '../api.ts';
 import { parseConventional, typeHint } from '../commit-format.ts';
-import { formatDate } from '../format.ts';
+import { authorHue, authorInitial, formatDate, formatMonthDay } from '../format.ts';
 
 const ROW_H = 26;
 const LANE_W = 16;
 const PAD_LEFT = 18;
 const MAX_GUTTER = 520;
+/** 引用列固定宽度：不管这行有没有分支标签，提交说明都从同一条竖线开始 */
+const REFS_W = 176;
 
 /**
  * 泳道配色：前十条用挑好的一组低饱和色（0 号泳道通常是当前分支，配主色），
@@ -66,6 +68,8 @@ export function GraphView({
 }: GraphViewProps) {
   const { commits, laneCount, total, truncated } = graph;
   const [hover, setHover] = useState<string | null>(null);
+  /** 键盘光标：↑↓ 在提交之间走，Enter 打开，Esc 取消 */
+  const [cursor, setCursor] = useState<number | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const scopeSet = useMemo(() => (focus ? new Set(focus.shas) : null), [focus]);
@@ -88,9 +92,56 @@ export function GraphView({
     container.scrollTo({ top, behavior: 'smooth' });
   }, [focused, tipRow]);
 
+  // 键盘移动时把光标行带进视野，和鼠标行为保持一致
+  useEffect(() => {
+    if (cursor === null) return;
+    const container = scrollRef.current;
+    if (!container) return;
+    const top = container.scrollTop;
+    const rowTop = cursor * ROW_H;
+    const rowBottom = rowTop + ROW_H;
+    if (rowTop < top) container.scrollTo({ top: Math.max(0, rowTop - 2 * ROW_H) });
+    else if (rowBottom > top + container.clientHeight) {
+      container.scrollTo({ top: rowBottom - container.clientHeight + 2 * ROW_H });
+    }
+  }, [cursor]);
+
   if (commits.length === 0) {
     return <div className="empty-desc">没有提交</div>;
   }
+
+  const open = (index: number) => {
+    const commit = commits[index];
+    if (!commit) return;
+    onSelect?.({
+      sha: commit.sha,
+      subject: commit.subject,
+      authorName: commit.authorName,
+      authoredAt: commit.authoredAt,
+    });
+  };
+
+  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      const step = event.key === 'ArrowDown' ? 1 : -1;
+      setCursor((current) => {
+        if (current === null) {
+          // 从已选中的那行接着走，没有就从头
+          const selected = commits.findIndex((commit) => commit.sha === selectedSha);
+          return selected >= 0 ? selected : step > 0 ? 0 : commits.length - 1;
+        }
+        return Math.min(commits.length - 1, Math.max(0, current + step));
+      });
+      return;
+    }
+    if (event.key === 'Enter' && cursor !== null) {
+      event.preventDefault();
+      open(cursor);
+      return;
+    }
+    if (event.key === 'Escape') setCursor(null);
+  };
 
   // 泳道多时压缩间距，但保证最小 11px，否则弧线看不出走向
   const laneWidth = Math.min(LANE_W, Math.max(11, (MAX_GUTTER - PAD_LEFT - 12) / Math.max(laneCount, 1)));
@@ -189,89 +240,94 @@ export function GraphView({
             <span>共 {total} 个，图中显示最近的一部分</span>
           </>
         ) : null}
+        <span className="graph-legend-keys">
+          <kbd>↑</kbd>
+          <kbd>↓</kbd> 选行 <kbd>Enter</kbd> 打开
+        </span>
       </div>
 
-      <div className="graph-scroll" ref={scrollRef}>
-        <div className="graph-canvas" style={{ height }}>
-          <svg className="graph-svg" width={gutter} height={height} aria-hidden="true">
-            {focusLane !== null ? (
-              <rect
-                x={x(focusLane) - laneWidth / 2}
-                y={0}
-                width={laneWidth}
-                height={height}
-                rx={laneWidth / 2}
-                fill={focusMode ? 'rgb(var(--accent-rgb) / 0.13)' : 'rgb(var(--accent-rgb) / 0.07)'}
-              />
-            ) : null}
-
-            {edges.map((edge) => (
-              <path
-                key={edge.key}
-                d={edge.d}
-                stroke={edge.color}
-                strokeWidth={focusMode && edge.inScope ? 2.4 : 1.9}
-                fill="none"
-                opacity={focusMode ? (edge.inScope ? 0.95 : 0.12) : 0.7}
-              />
-            ))}
-
-            {commits.map((commit, row) => {
-              const cx = x(commit.lane);
-              const cy = y(row);
-              const color = laneColor(commit.lane);
-              const inScope = scopeSet?.has(commit.sha) ?? false;
-              const opacity = focusMode ? (inScope ? 1 : 0.18) : 1;
-              const radius = commit.isMerge ? 5.2 : inScope && scopeSet ? 4.6 : 4;
-              return commit.isMerge ? (
-                <circle
-                  key={commit.sha}
-                  cx={cx}
-                  cy={cy}
-                  r={radius}
-                  fill="var(--bg)"
-                  stroke={color}
-                  strokeWidth={2.2}
-                  opacity={opacity}
+      <div className="graph-frame">
+        <div
+          className="graph-scroll"
+          ref={scrollRef}
+          tabIndex={0}
+          onKeyDown={onKeyDown}
+          onBlur={() => setCursor(null)}
+          aria-label="提交图谱，可用上下方向键选择提交"
+        >
+          <div className="graph-canvas" style={{ height }}>
+            <svg className="graph-svg" width={gutter} height={height} aria-hidden="true">
+              {focusLane !== null ? (
+                <rect
+                  x={x(focusLane) - laneWidth / 2}
+                  y={0}
+                  width={laneWidth}
+                  height={height}
+                  rx={laneWidth / 2}
+                  fill={focusMode ? 'rgb(var(--accent-rgb) / 0.13)' : 'rgb(var(--accent-rgb) / 0.07)'}
                 />
-              ) : (
-                <circle key={commit.sha} cx={cx} cy={cy} r={radius} fill={color} opacity={opacity} />
-              );
-            })}
-          </svg>
+              ) : null}
 
-          <div className="graph-rows">
-            {commits.map((commit) => {
-              const inScope = scopeSet?.has(commit.sha) ?? false;
-              const isTip = Boolean(focusedShort) && commit.refs.some((ref) => ref.name === focusedShort);
-              // 规范写法的提交：类型抽成角标，正文只留那半句人话
-              const parsed = parseConventional(commit.subject);
-              return (
-                <div
-                  key={commit.sha}
-                  className={`graph-row${hover === commit.sha ? ' is-hover' : ''}${
-                    selectedSha === commit.sha ? ' is-selected' : ''
-                  }${focusMode ? (inScope ? ' is-mine' : ' is-out') : inScope && scopeSet ? ' is-mine' : ''}${
-                    isTip ? ' is-tip' : ''
-                  }`}
-                  style={{ height: ROW_H, paddingLeft: gutter }}
-                  onMouseEnter={() => setHover(commit.sha)}
-                  onMouseLeave={() => setHover(null)}
-                  onClick={() =>
-                    onSelect?.({
-                      sha: commit.sha,
-                      subject: commit.subject,
-                      authorName: commit.authorName,
-                      authoredAt: commit.authoredAt,
-                    })
-                  }
-                  title={`${commit.shortSha} · ${commit.authorName} · ${formatDate(commit.authoredAt)}\n${commit.subject}\n点击看这次改了哪些文件`}
-                >
-                  <div className="graph-refs">
-                    {commit.refs
-                      .filter((ref) => ref.kind !== 'remote')
-                      .slice(0, 3)
-                      .map((ref) => (
+              {edges.map((edge) => (
+                <path
+                  key={edge.key}
+                  d={edge.d}
+                  stroke={edge.color}
+                  strokeWidth={focusMode && edge.inScope ? 2.4 : 1.9}
+                  fill="none"
+                  opacity={focusMode ? (edge.inScope ? 0.95 : 0.12) : 0.7}
+                />
+              ))}
+
+              {commits.map((commit, row) => {
+                const cx = x(commit.lane);
+                const cy = y(row);
+                const color = laneColor(commit.lane);
+                const inScope = scopeSet?.has(commit.sha) ?? false;
+                const opacity = focusMode ? (inScope ? 1 : 0.18) : 1;
+                const radius = commit.isMerge ? 5.2 : inScope && scopeSet ? 4.6 : 4;
+                return commit.isMerge ? (
+                  <circle
+                    key={commit.sha}
+                    cx={cx}
+                    cy={cy}
+                    r={radius}
+                    fill="var(--bg)"
+                    stroke={color}
+                    strokeWidth={2.2}
+                    opacity={opacity}
+                  />
+                ) : (
+                  <circle key={commit.sha} cx={cx} cy={cy} r={radius} fill={color} opacity={opacity} />
+                );
+              })}
+            </svg>
+
+            <div className="graph-rows">
+              {commits.map((commit, row) => {
+                const inScope = scopeSet?.has(commit.sha) ?? false;
+                const isTip = Boolean(focusedShort) && commit.refs.some((ref) => ref.name === focusedShort);
+                // 规范写法的提交：类型抽成角标，正文只留那半句人话
+                const parsed = parseConventional(commit.subject);
+                const named = commit.refs.filter((ref) => ref.kind !== 'remote');
+                const shown = named.slice(0, 2);
+                const rest = named.length - shown.length;
+                return (
+                  <div
+                    key={commit.sha}
+                    className={`graph-row${hover === commit.sha ? ' is-hover' : ''}${
+                      selectedSha === commit.sha ? ' is-selected' : ''
+                    }${cursor === row ? ' is-cursor' : ''}${
+                      focusMode ? (inScope ? ' is-mine' : ' is-out') : inScope && scopeSet ? ' is-mine' : ''
+                    }${isTip ? ' is-tip' : ''}`}
+                    style={{ height: ROW_H, paddingLeft: gutter }}
+                    onMouseEnter={() => setHover(commit.sha)}
+                    onMouseLeave={() => setHover(null)}
+                    onClick={() => open(row)}
+                    title={`${commit.shortSha} · ${commit.authorName} · ${formatDate(commit.authoredAt)}\n${commit.subject}\n点击看这次改了哪些文件`}
+                  >
+                    <div className="graph-refs">
+                      {shown.map((ref) => (
                         <button
                           key={ref.name}
                           className={`gref ${ref.kind}${ref.isHead ? ' head' : ''}`}
@@ -284,32 +340,43 @@ export function GraphView({
                           {ref.name}
                         </button>
                       ))}
-                    {isTip ? <span className="graph-tip">分支头</span> : null}
-                  </div>
-
-                  <div className={`graph-subject${commit.isMerge ? ' is-merge' : ''}`}>
-                    {parsed ? (
-                      <>
-                        <span className={`ctype-chip ctype-${parsed.type}`} title={`${parsed.type} · ${typeHint(parsed.type)}`}>
-                          {parsed.type}
-                          {parsed.scope ? <em>({parsed.scope})</em> : null}
-                          {parsed.breaking ? '!' : null}
+                      {rest > 0 ? (
+                        <span className="gref-more" title={named.map((ref) => ref.name).join('\n')}>
+                          +{rest}
                         </span>
-                        {parsed.description}
-                      </>
-                    ) : (
-                      commit.subject
-                    )}
-                  </div>
+                      ) : null}
+                      {isTip ? <span className="graph-tip">分支头</span> : null}
+                    </div>
 
-                  <div className="graph-meta">
-                    <code>{commit.shortSha}</code>
-                    <span>{commit.authorName}</span>
-                    <span>{formatDate(commit.authoredAt)}</span>
+                    <div className={`graph-subject${commit.isMerge ? ' is-merge' : ''}`}>
+                      {parsed ? (
+                        <>
+                          <span className={`ctype-chip ctype-${parsed.type}`} title={`${parsed.type} · ${typeHint(parsed.type)}`}>
+                            {parsed.type}
+                            {parsed.scope ? <em>({parsed.scope})</em> : null}
+                            {parsed.breaking ? '!' : null}
+                          </span>
+                          {parsed.description}
+                        </>
+                      ) : (
+                        commit.subject
+                      )}
+                    </div>
+
+                    <div className="graph-meta">
+                      <code>{commit.shortSha}</code>
+                      <span className="avatar" style={{ ['--avatar-hue' as string]: authorHue(commit.authorName) }}>
+                        {authorInitial(commit.authorName)}
+                      </span>
+                      <span className="graph-author" title={commit.authorName}>
+                        {commit.authorName}
+                      </span>
+                      <span title={formatDate(commit.authoredAt)}>{formatMonthDay(commit.authoredAt)}</span>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>

@@ -1,13 +1,22 @@
 import { useMemo, useState } from 'react';
 import type { TimelineDay } from '../api.ts';
-import { formatNumber } from '../format.ts';
+import { formatNumber, longestStreak } from '../format.ts';
 
 const CELL = 11;
 const GAP = 2.5;
 const ROW_H = CELL + GAP;
+/** 左侧星期标签占的宽度 */
+const LABEL_W = 20;
 
 /** 五级色阶：空 → 极少 → 少 → 多 → 很多（青色系，与主题一致） */
 const LEVEL_COLORS = ['var(--heat-0)', 'var(--heat-1)', 'var(--heat-2)', 'var(--heat-3)', 'var(--heat-4)'];
+
+/** 只在周一、三、五标字，七行全标会挤成一片 */
+const WEEKDAY_LABELS: Array<{ row: number; text: string }> = [
+  { row: 0, text: '一' },
+  { row: 2, text: '三' },
+  { row: 4, text: '五' },
+];
 
 function levelOf(commits: number): number {
   if (commits <= 0) return 0;
@@ -57,67 +66,91 @@ export function Heatmap({ days }: { days: TimelineDay[] }) {
       return prev ? mark.col - prev.col >= 4 : true;
     });
 
-    return { cells, weeks, months };
+    const commits = days.reduce((sum, day) => sum + day.commits, 0);
+    const activeDays = days.filter((day) => day.commits > 0).length;
+    return { cells, weeks, months, commits, activeDays, streak: longestStreak(days) };
   }, [days]);
 
   if (!layout) return null;
 
-  const width = layout.weeks * (CELL + GAP);
+  const gridWidth = layout.weeks * (CELL + GAP) - GAP;
+  const width = LABEL_W + gridWidth;
   const height = 7 * ROW_H;
 
+  // 提示浮层贴着光标，但别越过窗口右边缘
+  const tipStyle = tip
+    ? {
+        left: Math.min(tip.x + 14, window.innerWidth - 210),
+        top: Math.min(tip.y + 12, window.innerHeight - 64),
+      }
+    : undefined;
+
   return (
-    <div className="heatmap-wrap">
-      <svg
-        width={width}
-        height={height + 16}
-        viewBox={`0 0 ${width} ${height + 16}`}
-        role="img"
-        aria-label="提交活动热力图"
-      >
-        <g transform="translate(0, 14)">
-          {layout.cells.map((cell) => (
-            <rect
-              key={cell.day.date}
-              className="heat-cell"
-              x={cell.col * (CELL + GAP)}
-              y={cell.row * ROW_H}
-              width={CELL}
-              height={CELL}
-              rx={2.5}
-              fill={LEVEL_COLORS[levelOf(cell.day.commits)]}
-              onMouseEnter={(event) =>
-                setTip({ x: event.clientX, y: event.clientY, day: cell.day })
-              }
-              onMouseLeave={() => setTip(null)}
-            >
-              <title>{`${cell.day.date} · ${cell.day.commits} 个提交`}</title>
-            </rect>
-          ))}
-          {layout.months.map((mark) => (
+    <div className="heatmap-block">
+      <div className="heatmap-wrap">
+        <svg width={width} height={height + 16} viewBox={`0 0 ${width} ${height + 16}`} role="img" aria-label="提交活动热力图">
+          <g transform={`translate(${LABEL_W}, 14)`}>
+            {layout.cells.map((cell) => (
+              <rect
+                key={cell.day.date}
+                className="heat-cell"
+                x={cell.col * (CELL + GAP)}
+                y={cell.row * ROW_H}
+                width={CELL}
+                height={CELL}
+                rx={2.5}
+                fill={LEVEL_COLORS[levelOf(cell.day.commits)]}
+                onMouseEnter={(event) => setTip({ x: event.clientX, y: event.clientY, day: cell.day })}
+                onMouseLeave={() => setTip(null)}
+              >
+                <title>{`${cell.day.date} · ${cell.day.commits} 个提交`}</title>
+              </rect>
+            ))}
+            {layout.months.map((mark) => (
+              <text key={`${mark.label}-${mark.col}`} className="heatmap-month" x={mark.col * (CELL + GAP)} y={-4}>
+                {mark.label}
+              </text>
+            ))}
+          </g>
+          {WEEKDAY_LABELS.map((label) => (
             <text
-              key={`${mark.label}-${mark.col}`}
-              className="heatmap-month"
-              x={mark.col * (CELL + GAP)}
-              y={-4}
+              key={label.text}
+              className="heatmap-weekday"
+              x={0}
+              y={14 + label.row * ROW_H + CELL - 2.5}
             >
-              {mark.label}
+              {label.text}
             </text>
           ))}
-        </g>
-      </svg>
+        </svg>
 
-      {tip && (
-        <div className="tooltip" style={{ left: tip.x + 14, top: tip.y + 12 }}>
-          <div>{tip.day.date}</div>
-          <div className="muted">
-            {tip.day.commits} 个提交
-            {tip.day.merges > 0 ? ` · ${tip.day.merges} 次合并` : ''}
-            {tip.day.commits > 0
-              ? ` · +${formatNumber(tip.day.insertions)} −${formatNumber(tip.day.deletions)}`
-              : ''}
+        {tip ? (
+          <div className="tooltip" style={tipStyle}>
+            <div>{tip.day.date}</div>
+            <div className="muted">
+              {tip.day.commits} 个提交
+              {tip.day.merges > 0 ? ` · ${tip.day.merges} 次合并` : ''}
+              {tip.day.commits > 0
+                ? ` · +${formatNumber(tip.day.insertions)} −${formatNumber(tip.day.deletions)}`
+                : ''}
+            </div>
           </div>
-        </div>
-      )}
+        ) : null}
+      </div>
+
+      <div className="heat-foot">
+        <span>
+          区间内 <b>{formatNumber(layout.commits)}</b> 个提交
+        </span>
+        <span className="heat-dot" aria-hidden="true" />
+        <span>
+          <b>{layout.activeDays}</b> 天有提交
+        </span>
+        <span className="heat-dot" aria-hidden="true" />
+        <span>
+          最长连续 <b>{layout.streak}</b> 天
+        </span>
+      </div>
     </div>
   );
 }

@@ -3,10 +3,24 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="color-scheme" content="dark" />
+    <!-- 两套主题都支持：具体用哪套由 theme.ts 写到 <html data-theme> 上 -->
+    <meta name="color-scheme" content="dark light" />
+    <meta name="description" content="GitAtlas：把 Git 仓库的状态、结构和问题变成一张能点、能拖的图，全程不用敲命令。" />
     <link rel="icon" type="image/png" href="/logo.png" />
     <link rel="apple-touch-icon" href="/logo.png" />
     <title>GitAtlas · Git 协作图谱</title>
+    <!-- 上色在脚本之前完成，打开时不会先闪一下白底 -->
+    <style>
+      html {
+        background: #0a0c11;
+      }
+      html[data-theme='light'] {
+        background: #f4f6fb;
+      }
+      body {
+        margin: 0;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>
