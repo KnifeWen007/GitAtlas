@@ -206,8 +206,14 @@ function prepareIcon() {
   const ico = path.join(BUILD, 'icon.ico');
   if (fs.existsSync(ico)) return;
 
-  // 没有设计稿时用一张生成图，至少避免成品顶着 Electron 默认图标
   const png = path.join(BUILD, 'icon.png');
+  // 设计稿在 brand/ 下（build/ 被 gitignore，不能指望它一直存在）
+  const design = path.join(ROOT, 'brand', 'gitatlas-mark-512.png');
+  if (fs.existsSync(design)) {
+    fs.copyFileSync(design, png);
+    console.log(`  使用 ${path.basename(design)} 作为应用图标`);
+    return;
+  }
   const script = `
 Add-Type -AssemblyName System.Drawing
 $size = 512

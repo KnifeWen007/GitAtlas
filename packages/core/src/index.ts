@@ -59,6 +59,15 @@ export {
   unstagePaths,
   discardPaths,
   commitAll,
+  commitPaths,
+  listRemotes,
+  addRemote,
+  setRemoteUrl,
+  removeRemote,
+  stashSave,
+  stashPop,
+  deleteTag,
+  renameBranch,
 } from './git/ops.ts';
 export type {
   RepoStatus,
@@ -67,4 +76,5 @@ export type {
   ChangeKind,
   OpResult,
   SnapshotEntry,
+  RemoteInfo,
 } from './git/ops.ts';

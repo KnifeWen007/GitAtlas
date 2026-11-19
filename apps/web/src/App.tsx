@@ -7,6 +7,7 @@ import {
   type GraphResponse,
   type HealthResponse,
   type RefRecord,
+  type RemoteInfo,
   type RepoRecord,
   type RepoStatus,
   type RepoSummary,
@@ -20,6 +21,7 @@ import { GraphView } from './components/GraphView.tsx';
 import { Heatmap, HeatmapLegend } from './components/Heatmap.tsx';
 import { InspectorDrawer, type InspectTarget } from './components/InspectorDrawer.tsx';
 import { OperationPanel } from './components/OperationPanel.tsx';
+import { webUrlOf } from './components/RemotePanel.tsx';
 import { RefList } from './components/RefList.tsx';
 import { SelectMenu } from './components/SelectMenu.tsx';
 import { StatCard } from './components/StatCard.tsx';
@@ -76,6 +78,7 @@ export function App({ initialTheme }: { initialTheme?: ThemeSettings } = {}) {
   // 写操作相关
   const [status, setStatus] = useState<RepoStatus | null>(null);
   const [snapshots, setSnapshots] = useState<SnapshotEntry[]>([]);
+  const [remotes, setRemotes] = useState<RemoteInfo[]>([]);
   const [opBusy, setOpBusy] = useState(false);
   const [opMessage, setOpMessage] = useState<{ text: string; tone: 'ok' | 'err' } | null>(null);
   /** 右侧检查器：工作区文件差异或某次提交的文件清单 */
@@ -134,7 +137,7 @@ export function App({ initialTheme }: { initialTheme?: ThemeSettings } = {}) {
     setLoadingDetail(true);
     void (async () => {
       try {
-        const [summary, timeline, refs, commits, graph, gitStatus, snapshotList] = await Promise.all([
+        const [summary, timeline, refs, commits, graph, gitStatus, snapshotList, remoteList] = await Promise.all([
           api.summary(selectedId),
           api.timeline(selectedId),
           api.refs(selectedId),
@@ -143,11 +146,13 @@ export function App({ initialTheme }: { initialTheme?: ThemeSettings } = {}) {
           // 仓库状态读不到（目录被删、git 不可用）不该拖垮整个看板
           api.status(selectedId).catch(() => null),
           api.snapshots(selectedId).catch(() => [] as SnapshotEntry[]),
+          api.remotes(selectedId).catch(() => [] as RemoteInfo[]),
         ]);
         if (cancelled) return;
         setDetail({ summary, timeline, refs, commits, graph });
         setStatus(gitStatus);
         setSnapshots(snapshotList);
+        setRemotes(remoteList);
       } catch (error) {
         if (!cancelled) setGlobalError(toMessage(error));
       } finally {
@@ -320,7 +325,7 @@ export function App({ initialTheme }: { initialTheme?: ThemeSettings } = {}) {
     <div className="app">
       <aside className="sidebar">
         <div className="brand">
-          <div className="brand-mark" />
+          <img className="brand-mark" src="/logo.png" alt="" width={30} height={30} draggable={false} />
           <div className="brand-text">
             <span className="brand-name">GitAtlas</span>
             <span className="brand-sub">协作图谱</span>
@@ -398,6 +403,7 @@ export function App({ initialTheme }: { initialTheme?: ThemeSettings } = {}) {
             lastIndexed={activeRepo?.lastIndexedAt ?? detail.summary.lastIndexedAt}
             status={status}
             snapshots={snapshots}
+            remotes={remotes}
             opBusy={opBusy}
             opMessage={opMessage}
             onGit={(body) => void handleGit(body)}
@@ -446,6 +452,7 @@ interface RepoViewProps {
   onRemove: () => void;
   status: RepoStatus | null;
   snapshots: SnapshotEntry[];
+  remotes: RemoteInfo[];
   opBusy: boolean;
   opMessage: { text: string; tone: 'ok' | 'err' } | null;
   onGit: (body: GitActionBody) => void;
@@ -466,6 +473,7 @@ function RepoView({
   onRemove,
   status,
   snapshots,
+  remotes,
   opBusy,
   opMessage,
   onGit,
@@ -478,6 +486,9 @@ function RepoView({
 }: RepoViewProps) {
   const { summary, timeline, refs, commits, graph } = detail;
   const totalChanges = summary.insertions + summary.deletions;
+  /** 页头显示 origin（没有就退到第一个远端），点一下直接开网页 */
+  const originRemote = remotes.find((remote) => remote.name === 'origin') ?? remotes[0] ?? null;
+  const originWeb = originRemote ? webUrlOf(originRemote.fetchUrl) : null;
 
   const firstYear = formatDate(summary.firstCommitAt).slice(0, 4);
   const lastYear = formatDate(summary.lastCommitAt).slice(0, 4);
@@ -496,7 +507,16 @@ function RepoView({
               <span className="badge badge-warn">{summary.staleBranches} 条僵化分支</span>
             ) : null}
           </h1>
-          <div className="repo-path">{summary.path}</div>
+          <div className="repo-path">
+            {summary.path}
+            {originWeb ? (
+              <a className="repo-link" href={originWeb} target="_blank" rel="noreferrer" title={`在浏览器打开 ${originWeb}`}>
+                {originWeb.replace(/^https?:\/\//, '').replace(/\/$/, '')}
+              </a>
+            ) : (
+              <span className="repo-link is-empty">未配置远端 · 在操作台里填一个地址就能拉取和推送</span>
+            )}
+          </div>
         </div>
         <div className="header-actions">
           <span className="badge">索引于 {formatRelative(lastIndexed)}</span>
@@ -545,6 +565,7 @@ function RepoView({
         status={status}
         branches={refs}
         snapshots={snapshots}
+        remotes={remotes}
         busy={opBusy || busy}
         message={opMessage}
         onRun={onGit}

@@ -34,7 +34,15 @@ import {
   stagePaths,
   unstagePaths,
   discardPaths,
-  commitAll,
+  commitPaths,
+  listRemotes,
+  addRemote,
+  setRemoteUrl,
+  removeRemote,
+  stashSave,
+  stashPop,
+  deleteTag,
+  renameBranch,
   GitReader,
   getWorkingDiff,
   getCommitFiles,
@@ -61,7 +69,18 @@ function explainGitFailure(error: unknown): string {
 }
 
 /** 这些操作会移动 HEAD，索引数据随之过期 */
-const HEAD_MOVING = new Set(['pull', 'merge', 'reset', 'restore', 'checkout', 'commit', 'concludeMerge']);
+const HEAD_MOVING = new Set([
+  'pull',
+  'merge',
+  'reset',
+  'restore',
+  'checkout',
+  'commit',
+  'concludeMerge',
+  'stash',
+  'stashPop',
+  'renameBranch',
+]);
 
 function need(value: string | undefined, label: string): string {
   const trimmed = value?.trim();
@@ -80,6 +99,11 @@ export interface GitActionBody {
   force?: boolean;
   message?: string;
   ref?: string;
+  /** 远端：名字与地址 */
+  remote?: string;
+  url?: string;
+  /** 提交时是否先 add -A */
+  all?: boolean;
 }
 
 export interface ServerOptions {
@@ -223,8 +247,24 @@ export async function startServer(options: ServerOptions): Promise<ServerHandle>
         return fetchRepo(gitPath, repoPath);
       case 'pull':
         return pullRepo(gitPath, repoPath);
-      case 'push':
-        return pushRepo(gitPath, repoPath);
+      case 'push': {
+        const status = await getStatus(gitPath, repoPath).catch(() => null);
+        return pushRepo(gitPath, repoPath, { setUpstream: !status?.upstream, branch: status?.branch ?? null });
+      }
+      case 'addRemote':
+        return addRemote(gitPath, repoPath, need(body.remote, '远端名'), need(body.url, '远端地址'));
+      case 'setRemoteUrl':
+        return setRemoteUrl(gitPath, repoPath, need(body.remote, '远端名'), need(body.url, '远端地址'));
+      case 'removeRemote':
+        return removeRemote(gitPath, repoPath, need(body.remote, '远端名'));
+      case 'stash':
+        return stashSave(gitPath, repoPath, body.message?.trim() || undefined);
+      case 'stashPop':
+        return stashPop(gitPath, repoPath);
+      case 'deleteTag':
+        return deleteTag(gitPath, repoPath, need(body.name, '标签名'));
+      case 'renameBranch':
+        return renameBranch(gitPath, repoPath, need(body.name, '原分支名'), need(body.target, '新分支名'));
       case 'checkout':
         return checkoutBranch(gitPath, repoPath, need(body.branch, '分支名'));
       case 'createBranch':
@@ -257,7 +297,7 @@ export async function startServer(options: ServerOptions): Promise<ServerHandle>
       case 'discard':
         return discardPaths(gitPath, repoPath, body.paths ?? []);
       case 'commit':
-        return commitAll(gitPath, repoPath, need(body.message, '提交说明'));
+        return commitPaths(gitPath, repoPath, need(body.message, '提交说明'), body.all !== false);
       default:
         throw new InvalidInput(`不支持的操作：${body.action}`);
     }
@@ -380,6 +420,18 @@ export async function startServer(options: ServerOptions): Promise<ServerHandle>
     if (!repo) return reply.code(404).send({ error: '仓库不存在' });
     try {
       return await getStatus(gitPath, repo.path);
+    } catch (error) {
+      return reply.code(500).send({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  app.get<{ Params: { id: string } }>('/api/repos/:id/remotes', async (request, reply) => {
+    const id = Number(request.params.id);
+    if (!Number.isFinite(id)) return reply.code(400).send({ error: 'id 无效' });
+    const repo = getRepo(store, id);
+    if (!repo) return reply.code(404).send({ error: '仓库不存在' });
+    try {
+      return await listRemotes(gitPath, repo.path);
     } catch (error) {
       return reply.code(500).send({ error: error instanceof Error ? error.message : String(error) });
     }

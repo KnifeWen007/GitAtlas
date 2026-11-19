@@ -1,17 +1,23 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import type {
   GitActionBody,
   RefRecord,
+  RemoteInfo,
   RepoStatus,
   SnapshotEntry,
   WorkingFile,
 } from '../api.ts';
+import { CommitComposer } from './CommitComposer.tsx';
+import { RemotePanel } from './RemotePanel.tsx';
 import { SelectMenu } from './SelectMenu.tsx';
+
+const LAYOUT_KEY = 'gitatlas.op.layout';
 
 interface OperationPanelProps {
   status: RepoStatus | null;
   branches: RefRecord[];
   snapshots: SnapshotEntry[];
+  remotes: RemoteInfo[];
   busy: boolean;
   message: { text: string; tone: 'ok' | 'err' } | null;
   onRun: (body: GitActionBody) => void;
@@ -20,6 +26,41 @@ interface OperationPanelProps {
   onOpenDiff: (path: string, staged: boolean) => void;
   /** 打开冲突编辑器 */
   onEditConflict: (path: string) => void;
+}
+
+interface OpSectionProps {
+  id: string;
+  title: string;
+  hint?: string;
+  /** 收起时也能看到的数字，比如「3 个文件」 */
+  summary?: string;
+  open: boolean;
+  onToggle: (id: string) => void;
+  children: ReactNode;
+}
+
+function OpSection({ id, title, hint, summary, open, onToggle, children }: OpSectionProps) {
+  return (
+    <div className={`op-block ${open ? 'is-open' : 'is-closed'}`}>
+      <button
+        type="button"
+        className="op-block-head"
+        aria-expanded={open}
+        aria-controls={`op-section-${id}`}
+        onClick={() => onToggle(id)}
+      >
+        <span className="op-caret" aria-hidden="true" />
+        <span className="op-block-name">{title}</span>
+        {hint ? <span className="hint">{hint}</span> : null}
+        {summary ? <span className="op-block-sum">{summary}</span> : null}
+      </button>
+      {open ? (
+        <div className="op-block-body" id={`op-section-${id}`}>
+          {children}
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 function kindLabel(kind: WorkingFile['kind']): string {
@@ -58,10 +99,19 @@ function snapshotTime(name: string): string {
   return formatTime(`${year}-${month}-${day}T${hour}:${minute}:${second}.${fraction}Z`);
 }
 
+function readLayout(): 'one' | 'all' {
+  try {
+    return localStorage.getItem(LAYOUT_KEY) === 'all' ? 'all' : 'one';
+  } catch {
+    return 'one';
+  }
+}
+
 export function OperationPanel({
   status,
   branches,
   snapshots,
+  remotes,
   busy,
   message,
   onRun,
@@ -70,12 +120,46 @@ export function OperationPanel({
   onEditConflict,
 }: OperationPanelProps) {
   const [branchInput, setBranchInput] = useState('');
+  const [renameInput, setRenameInput] = useState('');
   const [tagInput, setTagInput] = useState('');
   const [picked, setPicked] = useState('');
-  const [commitMessage, setCommitMessage] = useState('');
+  const [pickedTag, setPickedTag] = useState('');
   const [pendingDiscard, setPendingDiscard] = useState<string | null>(null);
 
+  /** 单开 / 全部展开；默认单开，点一个开一个 */
+  const [layout, setLayout] = useState<'one' | 'all'>(readLayout);
+  const [openId, setOpenId] = useState<string>('sync');
+  const [closed, setClosed] = useState<Set<string>>(new Set());
+
+  const toggle = (id: string) => {
+    if (layout === 'one') {
+      setOpenId((current) => (current === id ? '' : id));
+      return;
+    }
+    setClosed((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const isOpen = (id: string) => (layout === 'one' ? openId === id : !closed.has(id));
+
+  const switchLayout = (next: 'one' | 'all') => {
+    setLayout(next);
+    setClosed(new Set());
+    if (next === 'all') setOpenId('');
+    else setOpenId('sync');
+    try {
+      localStorage.setItem(LAYOUT_KEY, next);
+    } catch {
+      // 记不住就记不住，不影响使用
+    }
+  };
+
   const localBranches = branches.filter((ref) => ref.kind === 'branch');
+  const tags = branches.filter((ref) => ref.kind === 'tag');
   const others = localBranches.filter((ref) => ref.shortName !== status?.branch);
   const conflicts = status?.conflicts ?? [];
   /** 合并/变基等操作还在进行中；冲突清空后仍要留一个收尾入口 */
@@ -101,16 +185,42 @@ export function OperationPanel({
     onRun(body);
   };
 
+  const syncSummary = status
+    ? [status.ahead > 0 ? `↑${status.ahead}` : '', status.behind > 0 ? `↓${status.behind}` : '']
+        .filter(Boolean)
+        .join(' ')
+    : '';
+
   return (
     <section className="card op-panel">
       <div className="card-head">
         <div className="card-title">
           操作台
-          <span className="hint">所有改动都直接作用在仓库上</span>
+          <span className="hint">点标题展开一个模块，也可以全部摊开</span>
         </div>
-        <button className="btn btn-sm" onClick={onRefresh} disabled={busy}>
-          刷新状态
-        </button>
+        <div className="op-head-tools">
+          <div className="op-layout" role="group" aria-label="操作台展开方式">
+            <button
+              type="button"
+              className={layout === 'one' ? 'is-on' : ''}
+              aria-pressed={layout === 'one'}
+              onClick={() => switchLayout('one')}
+            >
+              逐个看
+            </button>
+            <button
+              type="button"
+              className={layout === 'all' ? 'is-on' : ''}
+              aria-pressed={layout === 'all'}
+              onClick={() => switchLayout('all')}
+            >
+              全部展开
+            </button>
+          </div>
+          <button className="btn btn-sm" onClick={onRefresh} disabled={busy}>
+            刷新状态
+          </button>
+        </div>
       </div>
 
       <div className="card-body op-body">
@@ -122,9 +232,7 @@ export function OperationPanel({
             {status.ahead > 0 ? <span className="op-chip up">↑ {status.ahead} 待推送</span> : null}
             {status.behind > 0 ? <span className="op-chip down">↓ {status.behind} 待拉取</span> : null}
             <span className={`op-chip ${worktree.tone}`}>{worktree.text}</span>
-            {status.operation ? (
-              <span className="op-chip bad">正在 {status.operation}</span>
-            ) : null}
+            {status.operation ? <span className="op-chip bad">正在 {status.operation}</span> : null}
             {status.stashCount > 0 ? <span className="op-chip">{status.stashCount} 个暂存</span> : null}
             {!status.remoteUrl ? <span className="op-chip">未配置远端</span> : null}
           </div>
@@ -140,20 +248,12 @@ export function OperationPanel({
             </div>
             {conflicts.map((file) => (
               <div className="op-file" key={file.path}>
-                <button
-                  className="op-file-main"
-                  onClick={() => onEditConflict(file.path)}
-                  title="打开编辑器，清掉冲突标记"
-                >
+                <button className="op-file-main" onClick={() => onEditConflict(file.path)} title="打开编辑器，清掉冲突标记">
                   <code className="op-code k-conflict">!</code>
                   <span className="op-path">{file.path}</span>
                 </button>
                 <div className="op-file-actions">
-                  <button
-                    className="btn btn-xs btn-accent"
-                    disabled={busy}
-                    onClick={() => onEditConflict(file.path)}
-                  >
+                  <button className="btn btn-xs btn-accent" disabled={busy} onClick={() => onEditConflict(file.path)}>
                     编辑
                   </button>
                   <button
@@ -177,11 +277,7 @@ export function OperationPanel({
               <button className="btn btn-sm" disabled={busy} onClick={() => run({ action: 'concludeMerge' })}>
                 都处理完了，完成合并
               </button>
-              <button
-                className="btn btn-sm btn-ghost"
-                disabled={busy}
-                onClick={() => run({ action: 'abortMerge' })}
-              >
+              <button className="btn btn-sm btn-ghost" disabled={busy} onClick={() => run({ action: 'abortMerge' })}>
                 放弃这次合并
               </button>
             </div>
@@ -219,8 +315,14 @@ export function OperationPanel({
           </div>
         ) : null}
 
-        <div className="op-block">
-          <div className="op-block-title">同步</div>
+        <OpSection
+          id="sync"
+          title="同步"
+          hint="和多远的仓库对一次账"
+          summary={syncSummary}
+          open={isOpen('sync')}
+          onToggle={toggle}
+        >
           <div className="op-buttons">
             <button className="btn btn-sm" disabled={busy} onClick={() => run({ action: 'fetch' })}>
               获取远端
@@ -232,10 +334,48 @@ export function OperationPanel({
               推送
             </button>
           </div>
-        </div>
+          {status && !status.upstream && status.branch ? (
+            <div className="hint">这个分支还没接上游，第一次推送会自动接上 origin。</div>
+          ) : null}
+          <div className="op-buttons op-sub">
+            <button
+              className="btn btn-sm btn-ghost"
+              disabled={busy || dirty === 0}
+              onClick={() => run({ action: 'stash' })}
+              title="把当前改动收进 stash，工作区变干净，随时能取回来"
+            >
+              暂存改动
+            </button>
+            <button
+              className="btn btn-sm btn-ghost"
+              disabled={busy || (status?.stashCount ?? 0) === 0}
+              onClick={() => run({ action: 'stashPop' })}
+              title="取回最近一次收起的改动"
+            >
+              取回暂存{status?.stashCount ? `（${status.stashCount}）` : ''}
+            </button>
+          </div>
+        </OpSection>
 
-        <div className="op-block">
-          <div className="op-block-title">分支</div>
+        <OpSection
+          id="remote"
+          title="远端"
+          hint="地址随时能改"
+          summary={remotes.length > 0 ? `${remotes.length} 个` : '未配置'}
+          open={isOpen('remote')}
+          onToggle={toggle}
+        >
+          <RemotePanel remotes={remotes} busy={busy} onRun={run} />
+        </OpSection>
+
+        <OpSection
+          id="branch"
+          title="分支"
+          hint="切换、新建、合并、改名"
+          summary={`${localBranches.length} 条`}
+          open={isOpen('branch')}
+          onToggle={toggle}
+        >
           <div className="op-buttons">
             <SelectMenu
               className="op-select"
@@ -253,11 +393,7 @@ export function OperationPanel({
             >
               切换过去
             </button>
-            <button
-              className="btn btn-sm"
-              disabled={busy || !picked}
-              onClick={() => run({ action: 'merge', branch: picked })}
-            >
+            <button className="btn btn-sm" disabled={busy || !picked} onClick={() => run({ action: 'merge', branch: picked })}>
               合并进来
             </button>
             <button
@@ -288,10 +424,36 @@ export function OperationPanel({
               新建并留在当前
             </button>
           </div>
-        </div>
 
-        <div className="op-block">
-          <div className="op-block-title">标签</div>
+          <div className="op-buttons">
+            <input
+              className="op-input"
+              placeholder={`把 ${status?.branch ?? '当前分支'} 改名为`}
+              value={renameInput}
+              onChange={(event) => setRenameInput(event.target.value)}
+              disabled={busy || !status?.branch}
+            />
+            <button
+              className="btn btn-sm"
+              disabled={busy || !status?.branch || renameInput.trim().length === 0}
+              onClick={() => {
+                run({ action: 'renameBranch', name: status?.branch ?? '', target: renameInput.trim() });
+                setRenameInput('');
+              }}
+            >
+              改名
+            </button>
+          </div>
+        </OpSection>
+
+        <OpSection
+          id="tag"
+          title="标签"
+          hint="给某次提交钉个名字"
+          summary={`${tags.length} 个`}
+          open={isOpen('tag')}
+          onToggle={toggle}
+        >
           <div className="op-buttons">
             <input
               className="op-input"
@@ -311,19 +473,55 @@ export function OperationPanel({
               在当前提交打标签
             </button>
           </div>
-        </div>
+
+          <div className="op-buttons">
+            <SelectMenu
+              className="op-select"
+              value={pickedTag}
+              onChange={setPickedTag}
+              disabled={busy || tags.length === 0}
+              placeholder={tags.length > 0 ? '选一个标签…' : '还没有标签'}
+              ariaLabel="选择标签"
+              options={tags.map((ref) => ({ value: ref.shortName, label: ref.shortName }))}
+            />
+            <button
+              className="btn btn-sm btn-ghost"
+              disabled={busy || !pickedTag}
+              onClick={() => {
+                run({ action: 'deleteTag', name: pickedTag });
+                setPickedTag('');
+              }}
+            >
+              删除标签
+            </button>
+          </div>
+        </OpSection>
+
+        {status ? (
+          <OpSection
+            id="commit"
+            title="提交"
+            hint="按 Conventional Commits 写"
+            summary={dirty > 0 ? `${dirty} 个改动` : '工作区干净'}
+            open={isOpen('commit')}
+            onToggle={toggle}
+          >
+            <CommitComposer status={status} busy={busy} onRun={run} />
+          </OpSection>
+        ) : null}
 
         {status && dirty > 0 ? (
-          <div className="op-block">
-            <div className="op-block-title">工作区 · {dirty} 个文件</div>
-
+          <OpSection
+            id="worktree"
+            title="工作区"
+            hint="点文件名看差异，逐行决定去留"
+            summary={`${dirty} 个文件`}
+            open={isOpen('worktree')}
+            onToggle={toggle}
+          >
             {status.staged.map((file) => (
               <div className="op-file" key={`s-${file.path}`}>
-                <button
-                  className="op-file-main"
-                  onClick={() => onOpenDiff(file.path, true)}
-                  title="点开看这个文件暂存了什么"
-                >
+                <button className="op-file-main" onClick={() => onOpenDiff(file.path, true)} title="点开看这个文件暂存了什么">
                   <code className="op-code k-staged">{kindLabel(file.kind)}</code>
                   <span className="op-path">{file.path}</span>
                 </button>
@@ -341,20 +539,12 @@ export function OperationPanel({
 
             {status.unstaged.map((file) => (
               <div className="op-file" key={`u-${file.path}`}>
-                <button
-                  className="op-file-main"
-                  onClick={() => onOpenDiff(file.path, false)}
-                  title="点开看这个文件改了什么"
-                >
+                <button className="op-file-main" onClick={() => onOpenDiff(file.path, false)} title="点开看这个文件改了什么">
                   <code className={`op-code k-${file.kind}`}>{kindLabel(file.kind)}</code>
                   <span className="op-path">{file.path}</span>
                 </button>
                 <div className="op-file-actions">
-                  <button
-                    className="btn btn-xs"
-                    disabled={busy}
-                    onClick={() => run({ action: 'stage', paths: [file.path] })}
-                  >
+                  <button className="btn btn-xs" disabled={busy} onClick={() => run({ action: 'stage', paths: [file.path] })}>
                     暂存
                   </button>
                   {pendingDiscard === file.path ? (
@@ -380,54 +570,29 @@ export function OperationPanel({
 
             {status.untracked.map((file) => (
               <div className="op-file" key={`n-${file.path}`}>
-                <button
-                  className="op-file-main"
-                  onClick={() => onOpenDiff(file.path, false)}
-                  title="点开看这个新文件的内容"
-                >
+                <button className="op-file-main" onClick={() => onOpenDiff(file.path, false)} title="点开看这个新文件的内容">
                   <code className="op-code k-untracked">?</code>
                   <span className="op-path">{file.path}</span>
                 </button>
                 <div className="op-file-actions">
-                  <button
-                    className="btn btn-xs"
-                    disabled={busy}
-                    onClick={() => run({ action: 'stage', paths: [file.path] })}
-                  >
+                  <button className="btn btn-xs" disabled={busy} onClick={() => run({ action: 'stage', paths: [file.path] })}>
                     暂存
                   </button>
                 </div>
               </div>
             ))}
-
-            <div className="op-buttons op-commit">
-              <input
-                className="op-input op-input-wide"
-                placeholder="提交说明"
-                value={commitMessage}
-                onChange={(event) => setCommitMessage(event.target.value)}
-                disabled={busy}
-              />
-              <button
-                className="btn btn-sm btn-accent"
-                disabled={busy || commitMessage.trim().length === 0}
-                onClick={() => {
-                  run({ action: 'commit', message: commitMessage });
-                  setCommitMessage('');
-                }}
-              >
-                提交全部改动
-              </button>
-            </div>
-          </div>
+          </OpSection>
         ) : null}
 
         {snapshots.length > 0 ? (
-          <div className="op-block">
-            <div className="op-block-title">
-              回滚点
-              <span className="hint">合并与回滚前自动留的，随时可以退回</span>
-            </div>
+          <OpSection
+            id="snapshot"
+            title="回滚点"
+            hint="合并与回滚前自动留的，随时可以退回"
+            summary={`${snapshots.length} 个`}
+            open={isOpen('snapshot')}
+            onToggle={toggle}
+          >
             {snapshots.slice(0, 5).map((snapshot) => (
               <div className="op-file" key={snapshot.ref}>
                 <code className="op-code sha">{snapshot.sha.slice(0, 7)}</code>
@@ -445,7 +610,7 @@ export function OperationPanel({
                 </div>
               </div>
             ))}
-          </div>
+          </OpSection>
         ) : null}
       </div>
     </section>

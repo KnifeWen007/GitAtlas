@@ -293,9 +293,150 @@ export async function pullRepo(gitPath: string | undefined, repoPath: string): P
   return runNetwork(reader, ['pull', '--no-rebase', '--no-edit']);
 }
 
-export async function pushRepo(gitPath: string | undefined, repoPath: string): Promise<OpResult> {
+export async function pushRepo(
+  gitPath: string | undefined,
+  repoPath: string,
+  options: { setUpstream?: boolean; branch?: string | null } = {},
+): Promise<OpResult> {
   const reader = makeReader(gitPath, repoPath);
+  // 新分支第一次推：顺手把上游接上，否则后面每次推送都要再问一遍
+  if (options.setUpstream && options.branch) {
+    return runNetwork(reader, ['push', '-u', 'origin', options.branch]);
+  }
   return runNetwork(reader, ['push']);
+}
+
+/* ---------- 远端 ---------- */
+
+export interface RemoteInfo {
+  name: string;
+  fetchUrl: string;
+  pushUrl: string;
+}
+
+/** `git remote -v` 一个远端两行（fetch / push），按名字合并 */
+export async function listRemotes(
+  gitPath: string | undefined,
+  repoPath: string,
+): Promise<RemoteInfo[]> {
+  const reader = makeReader(gitPath, repoPath);
+  const out = await reader.tryRun(['remote', '-v']);
+  if (!out) return [];
+
+  const map = new Map<string, RemoteInfo>();
+  for (const line of out.split('\n')) {
+    const matched = /^(\S+)\s+(\S+)\s+\((fetch|push)\)$/.exec(line.trim());
+    if (!matched) continue;
+    const [, name = '', url = '', kind = 'fetch'] = matched;
+    const entry = map.get(name) ?? { name, fetchUrl: '', pushUrl: '' };
+    if (kind === 'fetch') entry.fetchUrl = url;
+    else entry.pushUrl = url;
+    map.set(name, entry);
+  }
+  return [...map.values()];
+}
+
+export async function addRemote(
+  gitPath: string | undefined,
+  repoPath: string,
+  name: string,
+  url: string,
+): Promise<OpResult> {
+  const reader = makeReader(gitPath, repoPath);
+  try {
+    await reader.run(['remote', 'add', name, url]);
+    return { ok: true, message: `已添加远端 ${name}` };
+  } catch (error) {
+    return { ok: false, message: explainGitError(error), stderr: stderrOf(error) };
+  }
+}
+
+export async function setRemoteUrl(
+  gitPath: string | undefined,
+  repoPath: string,
+  name: string,
+  url: string,
+): Promise<OpResult> {
+  const reader = makeReader(gitPath, repoPath);
+  try {
+    await reader.run(['remote', 'set-url', name, url]);
+    return { ok: true, message: `已把 ${name} 改到 ${url}` };
+  } catch (error) {
+    return { ok: false, message: explainGitError(error), stderr: stderrOf(error) };
+  }
+}
+
+export async function removeRemote(
+  gitPath: string | undefined,
+  repoPath: string,
+  name: string,
+): Promise<OpResult> {
+  const reader = makeReader(gitPath, repoPath);
+  try {
+    await reader.run(['remote', 'remove', name]);
+    return { ok: true, message: `已移除远端 ${name}` };
+  } catch (error) {
+    return { ok: false, message: explainGitError(error), stderr: stderrOf(error) };
+  }
+}
+
+/* ---------- 暂存、标签、分支改名 ---------- */
+
+/** 把当前改动收进 stash：切换分支前想留个尾巴时用 */
+export async function stashSave(
+  gitPath: string | undefined,
+  repoPath: string,
+  message?: string,
+): Promise<OpResult> {
+  const reader = makeReader(gitPath, repoPath);
+  try {
+    const args = ['stash', 'push', '--include-untracked'];
+    if (message) args.push('-m', message);
+    const out = await reader.run(args);
+    const line = out.split('\n').find((item) => item.trim().length > 0) ?? '';
+    return { ok: true, message: /no local changes/i.test(line) ? '没有可暂存的改动' : '已把当前改动收进暂存' };
+  } catch (error) {
+    return { ok: false, message: explainGitError(error), stderr: stderrOf(error) };
+  }
+}
+
+export async function stashPop(gitPath: string | undefined, repoPath: string): Promise<OpResult> {
+  const reader = makeReader(gitPath, repoPath);
+  try {
+    await reader.run(['stash', 'pop']);
+    return { ok: true, message: '已取回最近一次暂存' };
+  } catch (error) {
+    return { ok: false, message: explainGitError(error), stderr: stderrOf(error) };
+  }
+}
+
+export async function deleteTag(
+  gitPath: string | undefined,
+  repoPath: string,
+  name: string,
+): Promise<OpResult> {
+  const reader = makeReader(gitPath, repoPath);
+  try {
+    await reader.run(['tag', '-d', '--', name]);
+    return { ok: true, message: `已删除标签 ${name}` };
+  } catch (error) {
+    return { ok: false, message: explainGitError(error), stderr: stderrOf(error) };
+  }
+}
+
+export async function renameBranch(
+  gitPath: string | undefined,
+  repoPath: string,
+  from: string,
+  to: string,
+): Promise<OpResult> {
+  const reader = makeReader(gitPath, repoPath);
+  try {
+    await reader.run(['branch', '-m', from, to]);
+    return { ok: true, message: `已把 ${from} 改名为 ${to}` };
+  } catch (error) {
+    return { ok: false, message: explainGitError(error), stderr: stderrOf(error) };
+  }
 }
 
 export async function checkoutBranch(
@@ -528,18 +669,31 @@ export async function discardPaths(
   }
 }
 
-export async function commitAll(
+/**
+ * 提交。all=true 先把所有改动（含未跟踪）加进索引，否则只提交已暂存的部分。
+ * 只在暂存区里有东西时提交，才能让"挑着提"真正生效。
+ */
+export async function commitPaths(
   gitPath: string | undefined,
   repoPath: string,
   message: string,
+  all: boolean,
 ): Promise<OpResult> {
   const reader = makeReader(gitPath, repoPath);
   try {
-    await reader.run(['add', '-A']);
+    if (all) await reader.run(['add', '-A']);
     const out = await reader.run(['commit', '-m', message]);
     const first = out.split('\n').find((line) => line.trim().length > 0) ?? '已提交';
     return { ok: true, message: first.replace(/^\[[^\]]+\]\s*/, '') };
   } catch (error) {
     return { ok: false, message: explainGitError(error), stderr: stderrOf(error) };
   }
+}
+
+export async function commitAll(
+  gitPath: string | undefined,
+  repoPath: string,
+  message: string,
+): Promise<OpResult> {
+  return commitPaths(gitPath, repoPath, message, true);
 }

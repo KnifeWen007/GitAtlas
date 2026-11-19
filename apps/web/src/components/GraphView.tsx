@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { BranchScope, GraphResponse } from '../api.ts';
+import { parseConventional, typeHint } from '../commit-format.ts';
 import { formatDate } from '../format.ts';
 
 const ROW_H = 26;
@@ -243,6 +244,8 @@ export function GraphView({
             {commits.map((commit) => {
               const inScope = scopeSet?.has(commit.sha) ?? false;
               const isTip = Boolean(focusedShort) && commit.refs.some((ref) => ref.name === focusedShort);
+              // 规范写法的提交：类型抽成角标，正文只留那半句人话
+              const parsed = parseConventional(commit.subject);
               return (
                 <div
                   key={commit.sha}
@@ -284,7 +287,20 @@ export function GraphView({
                     {isTip ? <span className="graph-tip">分支头</span> : null}
                   </div>
 
-                  <div className={`graph-subject${commit.isMerge ? ' is-merge' : ''}`}>{commit.subject}</div>
+                  <div className={`graph-subject${commit.isMerge ? ' is-merge' : ''}`}>
+                    {parsed ? (
+                      <>
+                        <span className={`ctype-chip ctype-${parsed.type}`} title={`${parsed.type} · ${typeHint(parsed.type)}`}>
+                          {parsed.type}
+                          {parsed.scope ? <em>({parsed.scope})</em> : null}
+                          {parsed.breaking ? '!' : null}
+                        </span>
+                        {parsed.description}
+                      </>
+                    ) : (
+                      commit.subject
+                    )}
+                  </div>
 
                   <div className="graph-meta">
                     <code>{commit.shortSha}</code>

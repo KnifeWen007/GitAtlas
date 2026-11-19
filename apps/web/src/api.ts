@@ -213,6 +213,18 @@ export interface GitActionBody {
   force?: boolean;
   message?: string;
   ref?: string;
+  /** 远端名与地址 */
+  remote?: string;
+  url?: string;
+  /** 提交时是否先把全部改动加入索引 */
+  all?: boolean;
+}
+
+/** 一个远端：同名的 fetch / push 地址合成一条 */
+export interface RemoteInfo {
+  name: string;
+  fetchUrl: string;
+  pushUrl: string;
 }
 
 export type IndexPhase = 'validating' | 'refs' | 'commits' | 'aggregating' | 'done' | 'failed';
@@ -321,6 +333,7 @@ export const api = {
     ),
   git: (id: number, body: GitActionBody) =>
     request<OpResult>(`/api/repos/${id}/git`, { method: 'POST', body: JSON.stringify(body) }),
+  remotes: (id: number) => request<RemoteInfo[]>(`/api/repos/${id}/remotes`),
   file: (id: number, path: string) =>
     request<WorkingFileContent>(`/api/repos/${id}/file?path=${encodeURIComponent(path)}`),
   saveFile: (id: number, path: string, content: string) =>
