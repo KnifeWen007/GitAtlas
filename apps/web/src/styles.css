@@ -89,7 +89,7 @@ body {
   gap: 16px;
   padding: 20px 14px;
   border-right: 1px solid var(--border-soft);
-  background: linear-gradient(180deg, rgba(16, 23, 37, 0.7), rgba(8, 11, 18, 0.6));
+  background: linear-gradient(180deg, rgba(18, 24, 34, 0.72), rgba(10, 12, 17, 0.55));
   backdrop-filter: blur(8px);
   overflow-y: auto;
 }
@@ -181,11 +181,11 @@ body {
 }
 
 .repo-item:hover {
-  background: rgba(30, 41, 59, 0.55);
+  background: rgba(122, 162, 247, 0.09);
 }
 
 .repo-item.active {
-  background: linear-gradient(90deg, var(--accent-dim), rgba(30, 41, 59, 0.3));
+  background: linear-gradient(90deg, var(--accent-dim), rgba(122, 162, 247, 0.04));
   border-color: rgba(122, 162, 247, 0.35);
 }
 
@@ -287,7 +287,7 @@ body {
 }
 
 .btn-ghost:hover {
-  background: rgba(30, 41, 59, 0.6);
+  background: rgba(255, 255, 255, 0.05);
   color: var(--text);
 }
 
@@ -423,10 +423,11 @@ body {
 /* ---------- 卡片 ---------- */
 
 .card {
-  background: linear-gradient(180deg, rgba(24, 32, 46, 0.75), rgba(18, 23, 34, 0.9));
+  background: linear-gradient(180deg, rgba(26, 34, 49, 0.85), rgba(17, 22, 32, 0.94));
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  box-shadow: var(--shadow);
+  /* 顶部一道极淡高光，卡片之间才有层次，不然一片深色糊在一起 */
+  box-shadow: var(--shadow), inset 0 1px 0 rgba(255, 255, 255, 0.045);
 }
 
 .card-head {
@@ -470,7 +471,7 @@ body {
   padding: 13px 15px;
   border-radius: 12px;
   border: 1px solid var(--border);
-  background: linear-gradient(180deg, rgba(22, 32, 47, 0.6), rgba(13, 19, 29, 0.6));
+  background: linear-gradient(180deg, rgba(24, 32, 46, 0.55), rgba(14, 18, 26, 0.6));
   display: flex;
   flex-direction: column;
   gap: 3px;
@@ -626,7 +627,7 @@ body {
   gap: 10px;
   padding-right: 12px;
   font-size: 12.5px;
-  border-bottom: 1px solid rgba(29, 40, 57, 0.45);
+  border-bottom: 1px solid rgba(34, 44, 60, 0.5);
   transition: background 120ms ease;
 }
 
@@ -1390,7 +1391,7 @@ button.gref:hover {
   align-items: center;
   gap: 10px;
   padding: 8px 4px;
-  border-bottom: 1px solid rgba(29, 40, 57, 0.5);
+  border-bottom: 1px solid rgba(34, 44, 60, 0.55);
   font-size: 12.5px;
 }
 
@@ -1460,7 +1461,7 @@ button.gref:hover {
   gap: 12px;
   align-items: baseline;
   padding: 9px 4px;
-  border-bottom: 1px solid rgba(29, 40, 57, 0.5);
+  border-bottom: 1px solid rgba(34, 44, 60, 0.55);
 }
 
 .commit-row:last-child {
