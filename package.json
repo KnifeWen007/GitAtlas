@@ -1,0 +1,21 @@
+{
+  "name": "gitatlas",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.34.5",
+  "engines": {
+    "node": ">=22.6"
+  },
+  "scripts": {
+    "dev": "node --watch packages/server/src/main.ts",
+    "dev:web": "pnpm --filter @gitatlas/web run dev",
+    "atlas": "node packages/core/src/cli.ts",
+    "typecheck": "tsc -p packages/core/tsconfig.json && tsc -p packages/server/tsconfig.json && tsc -p apps/web/tsconfig.json",
+    "test": "node --test packages/core/src/**/*.test.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.7.0"
+  }
+}

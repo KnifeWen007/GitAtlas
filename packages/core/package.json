@@ -1,0 +1,13 @@
+{
+  "name": "@gitatlas/core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "GitAtlas 分析内核：Git 读取、索引、聚合、规则",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  }
+}

@@ -1,0 +1,23 @@
+# dependencies
+node_modules/
+
+# build output
+dist/
+dist-electron/
+release/
+
+# runtime data (index database, logs, backups)
+data/
+*.db
+*.db-wal
+*.db-shm
+
+# local view metadata
+.gitatlas/
+
+# misc
+.DS_Store
+Thumbs.db
+*.log
+.env
+.env.local
