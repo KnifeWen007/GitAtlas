@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   api,
+  type BranchScope,
   type CommitListItem,
   type GitActionBody,
   type GraphResponse,
@@ -60,6 +61,10 @@ export function App() {
   const [inspect, setInspect] = useState<InspectTarget | null>(null);
   /** 记住已经载入的仓库，用来区分"换仓库"和"同一仓库刷新" */
   const loadedRepoRef = useRef<number | null>(null);
+  /** 图谱聚焦的分支；null 表示看全部 */
+  const [focusRef, setFocusRef] = useState<string | null>(null);
+  /** 聚焦分支能到达的提交 + 相对默认分支的领先落后 */
+  const [scope, setScope] = useState<BranchScope | null>(null);
 
   const refreshRepos = useCallback(async () => {
     const list = await api.repos();
@@ -101,6 +106,8 @@ export function App() {
     if (loadedRepoRef.current !== selectedId) {
       loadedRepoRef.current = selectedId;
       setInspect(null);
+      // 换仓库时回到总览，否则会拿新仓库的图去套旧分支
+      setFocusRef(null);
     }
     let cancelled = false;
     setLoadingDetail(true);
@@ -130,6 +137,31 @@ export function App() {
       cancelled = true;
     };
   }, [selectedId, reloadKey]);
+
+  // 分支范围：决定图上谁亮谁暗，也是"选分支就跳到分支头"的依据
+  const headRef = status?.branch ?? detail?.summary.defaultBranch ?? null;
+  const scopeRef = focusRef ?? headRef;
+  const defaultBranch = detail?.summary.defaultBranch ?? null;
+
+  useEffect(() => {
+    if (selectedId === null || !scopeRef) {
+      setScope(null);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const result = await api.scope(selectedId, scopeRef, defaultBranch, 400);
+        if (!cancelled) setScope(result);
+      } catch {
+        // 分支可能刚被删掉，静默回到总览，不打断看板
+        if (!cancelled) setScope(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedId, scopeRef, defaultBranch]);
 
   // 索引任务轮询
   useEffect(() => {
@@ -227,6 +259,10 @@ export function App() {
       const result = await api.git(selectedId, body);
       const text = result.snapshot ? `${result.message}（已自动留回滚点）` : result.message;
       setOpMessage({ text, tone: result.ok ? 'ok' : 'err' });
+
+      // 切分支或建分支后，图谱直接跟过去，省得自己再滚一遍找自己的线
+      if (result.ok && body.action === 'switch' && body.branch) setFocusRef(body.branch);
+      if (result.ok && body.action === 'create' && body.name) setFocusRef(body.name);
 
       if (result.taskId) {
         setBusy(true);
@@ -346,6 +382,9 @@ export function App() {
             onRefreshStatus={() => setReloadKey((key) => key + 1)}
             onInspect={setInspect}
             selectedSha={inspect?.kind === 'commit' ? inspect.sha : null}
+            focusRef={focusRef}
+            scope={scope}
+            onFocus={setFocusRef}
           />
         )}
       </main>
@@ -391,6 +430,10 @@ interface RepoViewProps {
   onRefreshStatus: () => void;
   onInspect: (target: InspectTarget) => void;
   selectedSha: string | null;
+  /** 当前聚焦的分支；null 表示看全部分支 */
+  focusRef: string | null;
+  scope: BranchScope | null;
+  onFocus: (ref: string | null) => void;
 }
 
 function RepoView({
@@ -407,6 +450,9 @@ function RepoView({
   onRefreshStatus,
   onInspect,
   selectedSha,
+  focusRef,
+  scope,
+  onFocus,
 }: RepoViewProps) {
   const { summary, timeline, refs, commits, graph } = detail;
   const totalChanges = summary.insertions + summary.deletions;
@@ -491,19 +537,45 @@ function RepoView({
             提交图谱
             <span className="hint">每条泳道是一条提交链，弧线是合并；点任意一行看这次改了哪些文件</span>
           </div>
-          <div className="graph-key">
-            <span className="graph-key-item">
-              <i className="dot-node" /> 提交
-            </span>
-            <span className="graph-key-item">
-              <i className="dot-merge" /> 合并
-            </span>
+          <div className="graph-tools">
+            <label className="graph-picker">
+              <span>看哪条分支</span>
+              <select
+                value={focusRef ?? ''}
+                onChange={(event) => onFocus(event.target.value === '' ? null : event.target.value)}
+              >
+                <option value="">全部分支（总览）</option>
+                {refs
+                  .filter((ref) => ref.kind === 'branch' || ref.kind === 'remote')
+                  .slice()
+                  .sort((a, b) => Number(b.isHead) - Number(a.isHead) || a.shortName.localeCompare(b.shortName))
+                  .map((ref) => (
+                    <option key={ref.name} value={ref.shortName}>
+                      {ref.shortName}
+                      {ref.isHead ? ' · 当前' : ''}
+                      {ref.kind === 'remote' ? '（远端）' : ''}
+                    </option>
+                  ))}
+              </select>
+            </label>
+            <div className="graph-key">
+              <span className="graph-key-item">
+                <i className="dot-node" /> 提交
+              </span>
+              <span className="graph-key-item">
+                <i className="dot-merge" /> 合并
+              </span>
+            </div>
           </div>
         </div>
         <div className="card-body">
           <GraphView
             graph={graph}
             selectedSha={selectedSha}
+            focus={scope}
+            focused={focusRef}
+            currentBranch={status?.branch ?? summary.defaultBranch}
+            onFocus={onFocus}
             onSelect={(commit) => onInspect({ kind: 'commit', ...commit })}
           />
         </div>

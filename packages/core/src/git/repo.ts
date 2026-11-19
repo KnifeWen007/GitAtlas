@@ -111,6 +111,21 @@ export async function listRefs(reader: GitReader): Promise<RawRef[]> {
 }
 
 /**
+ * 某个引用能到达的提交（新的在前）。
+ *
+ * 图上是全部提交，要"圈出某条分支的范围"就得知道哪些提交属于它，
+ * 前端自己顺着 parents 走会在截断处断链，所以直接问 git。
+ */
+export async function listReachable(reader: GitReader, ref: string, limit = 500): Promise<string[]> {
+  if (ref.length === 0 || ref.startsWith('-')) throw new Error('引用名不合法');
+  const out = await reader.run(['rev-list', `--max-count=${limit}`, ref]);
+  return out
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+}
+
+/**
  * 计算分支相对默认分支的领先/落后提交数。
  * `git rev-list --count --left-right base...target` 输出 "left\tright"
  * 其中 left = base 独有（target 落后量），right = target 独有（target 领先量）。

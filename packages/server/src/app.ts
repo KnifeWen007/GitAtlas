@@ -42,6 +42,8 @@ import {
   readWorkingFile,
   writeWorkingFile,
   countConflictMarkers,
+  listReachable,
+  aheadBehind,
   type IndexProgress,
   type OpResult,
 } from '@gitatlas/core';
@@ -328,6 +330,33 @@ export async function startServer(options: ServerOptions): Promise<ServerHandle>
       if (!Number.isFinite(id)) return reply.code(400).send({ error: 'id 无效' });
       const limit = Number(request.query.limit ?? 240);
       return getGraph(store, id, Number.isFinite(limit) ? Math.min(Math.max(limit, 20), 600) : 240);
+    },
+  );
+
+  /**
+   * 某条分支在图上的范围。
+   * 前端拿它把"别人分支"压暗、把自己分支点亮，并算出相对默认分支的领先/落后。
+   */
+  app.get<{ Params: { id: string }; Querystring: { ref?: string; base?: string; limit?: string } }>(
+    '/api/repos/:id/scope',
+    async (request, reply) => {
+      const id = Number(request.params.id);
+      if (!Number.isFinite(id)) return reply.code(400).send({ error: 'id 无效' });
+      const repo = getRepo(store, id);
+      if (!repo) return reply.code(404).send({ error: '仓库不存在' });
+      const ref = request.query.ref?.trim();
+      if (!ref) return reply.code(400).send({ error: '请指定分支' });
+      const limit = Number(request.query.limit ?? 300);
+      const capped = Number.isFinite(limit) ? Math.min(Math.max(limit, 20), 2000) : 300;
+      try {
+        const reader = new GitReader({ cwd: repo.path, ...(gitPath ? { gitPath } : {}) });
+        const shas = await listReachable(reader, ref, capped);
+        const base = request.query.base?.trim();
+        const counts = base && base !== ref ? await aheadBehind(reader, base, ref) : null;
+        return { ref, shas, ahead: counts?.ahead ?? null, behind: counts?.behind ?? null };
+      } catch (error) {
+        return reply.code(400).send({ error: explainGitFailure(error) });
+      }
     },
   );
 

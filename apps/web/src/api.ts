@@ -140,6 +140,15 @@ export interface GraphCommit {
   refs: GraphRef[];
 }
 
+export interface BranchScope {
+  ref: string;
+  /** 这条分支能到达的提交，新的在前 */
+  shas: string[];
+  /** 相对默认分支的领先/落后，未知时为 null */
+  ahead: number | null;
+  behind: number | null;
+}
+
 export interface GraphResponse {
   repoId: number;
   commits: GraphCommit[];
@@ -289,6 +298,12 @@ export const api = {
   refs: (id: number) => request<RefRecord[]>(`/api/repos/${id}/refs`),
   commits: (id: number, limit = 40) => request<CommitListItem[]>(`/api/repos/${id}/commits?limit=${limit}`),
   graph: (id: number, limit = 240) => request<GraphResponse>(`/api/repos/${id}/graph?limit=${limit}`),
+  scope: (id: number, ref: string, base?: string | null, limit = 300) =>
+    request<BranchScope>(
+      `/api/repos/${id}/scope?ref=${encodeURIComponent(ref)}${
+        base && base !== ref ? `&base=${encodeURIComponent(base)}` : ''
+      }&limit=${limit}`,
+    ),
   status: (id: number) => request<RepoStatus>(`/api/repos/${id}/status`),
   snapshots: (id: number) => request<SnapshotEntry[]>(`/api/repos/${id}/snapshots`),
   diff: (id: number, path: string, staged = false) =>

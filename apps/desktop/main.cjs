@@ -19,10 +19,20 @@ const { pathToFileURL } = require('node:url');
 // 数据目录名用产品名，别让它在 %APPDATA% 下显示成 "@gitatlas/desktop"
 app.setName('GitAtlas');
 
+// 开发模式可挂调试端口，方便脚本或 DevTools 接管窗口
+if (process.env.ATLAS_DEBUG_PORT) {
+  app.commandLine.appendSwitch('remote-debugging-port', process.env.ATLAS_DEBUG_PORT);
+}
+
 /** electron-builder 便携版会注入此变量：数据目录跟着 exe 走 */
 const portableDir = process.env.PORTABLE_EXECUTABLE_DIR || '';
 /** 开发态可指定 Vite 地址，直接用上 HMR */
 const devUrl = process.env.ATLAS_DEV_URL || '';
+/**
+ * 跟着 Vite 开发时，接口由外部那台 `node --watch` 服务提供，
+ * 壳里再起一个内嵌服务只会出现两份数据、两个端口，反而更乱。
+ */
+const devExternalBackend = process.env.ATLAS_DEV_SKIP_BACKEND === '1';
 
 let mainWindow = null;
 let backend = null;
@@ -114,7 +124,8 @@ async function startBackend() {
 }
 
 async function createWindow() {
-  const handle = await startBackend();
+  // 开发态且接口在外部时，不启动内嵌服务，直接用 Vite 地址
+  const handle = devExternalBackend ? { url: devUrl } : await startBackend();
   const target = devUrl || handle.url;
 
   mainWindow = new BrowserWindow({

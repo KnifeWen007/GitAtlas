@@ -13,6 +13,7 @@ export {
 } from './git/diff.ts';
 export type { DiffLine, DiffLineKind, FileDiff, FileChangeStatus, CommitFile } from './git/diff.ts';
 export { readWorkingFile, writeWorkingFile, countConflictMarkers } from './git/file.ts';
+export { listReachable } from './git/repo.ts';
 export type { WorkingFileContent } from './git/file.ts';
 export { Store, SCHEMA_VERSION } from './store/db.ts';
 export {
