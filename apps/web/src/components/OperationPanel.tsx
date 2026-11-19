@@ -17,6 +17,8 @@ interface OperationPanelProps {
   onRefresh: () => void;
   /** 点文件看差异：staged 决定看暂存区还是工作区 */
   onOpenDiff: (path: string, staged: boolean) => void;
+  /** 打开冲突编辑器 */
+  onEditConflict: (path: string) => void;
 }
 
 function kindLabel(kind: WorkingFile['kind']): string {
@@ -64,6 +66,7 @@ export function OperationPanel({
   onRun,
   onRefresh,
   onOpenDiff,
+  onEditConflict,
 }: OperationPanelProps) {
   const [branchInput, setBranchInput] = useState('');
   const [tagInput, setTagInput] = useState('');
@@ -74,6 +77,8 @@ export function OperationPanel({
   const localBranches = branches.filter((ref) => ref.kind === 'branch');
   const others = localBranches.filter((ref) => ref.shortName !== status?.branch);
   const conflicts = status?.conflicts ?? [];
+  /** 合并/变基等操作还在进行中；冲突清空后仍要留一个收尾入口 */
+  const operation = status?.operation ?? null;
   const tracked = status ? status.staged.length + status.unstaged.length : 0;
   const untracked = status?.untracked.length ?? 0;
   const dirty = tracked + untracked;
@@ -130,15 +135,26 @@ export function OperationPanel({
           <div className="op-block op-block-alert">
             <div className="op-block-title">
               冲突 · {conflicts.length} 个文件
-              <span className="hint">两边都改了同一处，需要决定留哪边</span>
+              <span className="hint">点文件名可以在这里直接改，也可以一键选一边</span>
             </div>
             {conflicts.map((file) => (
               <div className="op-file" key={file.path}>
-                <code className="op-code k-conflict">!</code>
-                <span className="op-path" title={file.path}>
-                  {file.path}
-                </span>
+                <button
+                  className="op-file-main"
+                  onClick={() => onEditConflict(file.path)}
+                  title="打开编辑器，清掉冲突标记"
+                >
+                  <code className="op-code k-conflict">!</code>
+                  <span className="op-path">{file.path}</span>
+                </button>
                 <div className="op-file-actions">
+                  <button
+                    className="btn btn-xs btn-accent"
+                    disabled={busy}
+                    onClick={() => onEditConflict(file.path)}
+                  >
+                    编辑
+                  </button>
                   <button
                     className="btn btn-xs"
                     disabled={busy}
@@ -166,6 +182,37 @@ export function OperationPanel({
                 onClick={() => run({ action: 'abortMerge' })}
               >
                 放弃这次合并
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {conflicts.length === 0 && operation === 'merge' ? (
+          <div className="op-block op-block-alert">
+            <div className="op-block-title">
+              合并进行中
+              <span className="hint">冲突都处理完了，只差最后一步提交；也可以放弃这次合并</span>
+            </div>
+            <div className="op-buttons">
+              <button className="btn btn-sm btn-accent" disabled={busy} onClick={() => run({ action: 'concludeMerge' })}>
+                提交合并结果
+              </button>
+              <button className="btn btn-sm btn-ghost" disabled={busy} onClick={() => run({ action: 'abortMerge' })}>
+                放弃这次合并
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {conflicts.length === 0 && operation !== 'merge' && operation !== null ? (
+          <div className="op-block">
+            <div className="op-block-title">
+              {operation === 'rebase' ? '变基进行中' : operation === 'cherry-pick' ? '拣选进行中' : '回退进行中'}
+              <span className="hint">这一步还没收尾，处理完冲突后需要继续或放弃</span>
+            </div>
+            <div className="op-buttons">
+              <button className="btn btn-sm btn-ghost" disabled={busy} onClick={() => run({ action: 'abortMerge' })}>
+                放弃这次操作
               </button>
             </div>
           </div>

@@ -376,8 +376,22 @@ export async function mergeBranch(
 export async function abortMerge(gitPath: string | undefined, repoPath: string): Promise<OpResult> {
   const reader = makeReader(gitPath, repoPath);
   try {
-    await reader.run(['merge', '--abort']);
-    return { ok: true, message: '已放弃这次合并，回到合并前的状态' };
+    // 同一个按钮要能收尾合并、变基、拣选、回退，先看仓库卡在哪一步
+    const status = await getStatus(gitPath, repoPath);
+    switch (status.operation) {
+      case 'rebase':
+        await reader.run(['rebase', '--abort']);
+        return { ok: true, message: '已放弃这次变基' };
+      case 'cherry-pick':
+        await reader.run(['cherry-pick', '--abort']);
+        return { ok: true, message: '已放弃这次拣选' };
+      case 'revert':
+        await reader.run(['revert', '--abort']);
+        return { ok: true, message: '已放弃这次回退' };
+      default:
+        await reader.run(['merge', '--abort']);
+        return { ok: true, message: '已放弃这次合并，回到合并前的状态' };
+    }
   } catch (error) {
     return { ok: false, message: explainGitError(error), stderr: stderrOf(error) };
   }

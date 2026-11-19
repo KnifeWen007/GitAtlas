@@ -176,6 +176,26 @@ ipcMain.handle('gitatlas:pick-directory', async () => {
   return result.filePaths[0];
 });
 
+/* 用系统默认程序打开某个文件；冲突时想用熟悉的编辑器改，就走这里 */
+ipcMain.handle('gitatlas:open-path', async (_event, filePath) => {
+  if (typeof filePath !== 'string' || filePath.length === 0) return { ok: false, error: '路径为空' };
+  const failure = await shell.openPath(filePath);
+  if (failure) {
+    log(`打开失败：${filePath} -> ${failure}`);
+    return { ok: false, error: failure };
+  }
+  log(`已用默认程序打开：${filePath}`);
+  return { ok: true };
+});
+
+/* 在资源管理器 / 访达里定位文件 */
+ipcMain.handle('gitatlas:reveal-path', async (_event, filePath) => {
+  if (typeof filePath !== 'string' || filePath.length === 0) return { ok: false, error: '路径为空' };
+  shell.showItemInFolder(filePath);
+  log(`已在文件夹中定位：${filePath}`);
+  return { ok: true };
+});
+
 app.whenReady().then(async () => {
   log('app ready');
   try {

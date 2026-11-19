@@ -39,6 +39,9 @@ import {
   getWorkingDiff,
   getCommitFiles,
   getCommitFileDiff,
+  readWorkingFile,
+  writeWorkingFile,
+  countConflictMarkers,
   type IndexProgress,
   type OpResult,
 } from '@gitatlas/core';
@@ -399,6 +402,44 @@ export async function startServer(options: ServerOptions): Promise<ServerHandle>
     },
   );
 
+  /** 工作区文件正文：冲突编辑器用它载入带冲突标记的内容 */
+  app.get<{ Params: { id: string }; Querystring: { path?: string } }>(
+    '/api/repos/:id/file',
+    async (request, reply) => {
+      const id = Number(request.params.id);
+      if (!Number.isFinite(id)) return reply.code(400).send({ error: 'id 无效' });
+      const repo = getRepo(store, id);
+      if (!repo) return reply.code(404).send({ error: '仓库不存在' });
+      const filePath = request.query.path?.trim();
+      if (!filePath) return reply.code(400).send({ error: '请指定文件路径' });
+      try {
+        const file = await readWorkingFile(repo.path, filePath);
+        return { ...file, conflictMarkers: countConflictMarkers(file.text) };
+      } catch (error) {
+        return reply.code(400).send({ error: explainGitFailure(error) });
+      }
+    },
+  );
+
+  /** 保存编辑器里的内容；只写工作区，不碰 index */
+  app.put<{ Params: { id: string }; Body: { path?: string; content?: string } }>(
+    '/api/repos/:id/file',
+    async (request, reply) => {
+      const id = Number(request.params.id);
+      if (!Number.isFinite(id)) return reply.code(400).send({ error: 'id 无效' });
+      const repo = getRepo(store, id);
+      if (!repo) return reply.code(404).send({ error: '仓库不存在' });
+      const filePath = request.body?.path?.trim();
+      if (!filePath) return reply.code(400).send({ error: '请指定文件路径' });
+      if (typeof request.body?.content !== 'string') return reply.code(400).send({ error: '缺少文件内容' });
+      try {
+        const saved = await writeWorkingFile(repo.path, filePath, request.body.content);
+        return { ok: true, ...saved, conflictMarkers: countConflictMarkers(request.body.content) };
+      } catch (error) {
+        return reply.code(400).send({ error: explainGitFailure(error) });
+      }
+    },
+  );
   /** 某次提交里单个文件的差异 */
   app.get<{ Params: { id: string; sha: string }; Querystring: { path?: string; oldPath?: string } }>(
     '/api/repos/:id/commits/:sha/diff',

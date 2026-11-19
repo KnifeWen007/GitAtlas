@@ -13,8 +13,25 @@ declare global {
       platform: string;
       version: string;
       pickDirectory(): Promise<string | null>;
+      /** 用系统默认程序打开文件 */
+      openPath(filePath: string): Promise<{ ok: boolean; error?: string }>;
+      /** 在文件管理器里定位文件 */
+      revealPath(filePath: string): Promise<{ ok: boolean; error?: string }>;
     };
   }
+}
+
+/** 工作区文件正文；冲突编辑器用它载入带冲突标记的内容 */
+export interface WorkingFileContent {
+  path: string;
+  text: string;
+  binary: boolean;
+  truncated: boolean;
+  size: number;
+  exists: boolean;
+  note: string | null;
+  /** 还剩几段冲突标记（<<<<<<<） */
+  conflictMarkers: number;
 }
 
 export interface HealthResponse {
@@ -285,6 +302,13 @@ export const api = {
     ),
   git: (id: number, body: GitActionBody) =>
     request<OpResult>(`/api/repos/${id}/git`, { method: 'POST', body: JSON.stringify(body) }),
+  file: (id: number, path: string) =>
+    request<WorkingFileContent>(`/api/repos/${id}/file?path=${encodeURIComponent(path)}`),
+  saveFile: (id: number, path: string, content: string) =>
+    request<{ ok: boolean; path: string; bytes: number; conflictMarkers: number }>(`/api/repos/${id}/file`, {
+      method: 'PUT',
+      body: JSON.stringify({ path, content }),
+    }),
   reindex: (id: number) => request<{ taskId: string }>(`/api/repos/${id}/reindex`, { method: 'POST' }),
   remove: (id: number) => request<{ ok: boolean }>(`/api/repos/${id}`, { method: 'DELETE' }),
   task: (id: string) => request<TaskResponse>(`/api/tasks/${id}`),

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   api,
   type CommitListItem,
@@ -58,6 +58,8 @@ export function App() {
   const [opMessage, setOpMessage] = useState<{ text: string; tone: 'ok' | 'err' } | null>(null);
   /** 右侧检查器：工作区文件差异或某次提交的文件清单 */
   const [inspect, setInspect] = useState<InspectTarget | null>(null);
+  /** 记住已经载入的仓库，用来区分"换仓库"和"同一仓库刷新" */
+  const loadedRepoRef = useRef<number | null>(null);
 
   const refreshRepos = useCallback(async () => {
     const list = await api.repos();
@@ -91,10 +93,15 @@ export function App() {
       setStatus(null);
       setSnapshots([]);
       setInspect(null);
+      loadedRepoRef.current = null;
       return;
     }
-    // 换仓库时关掉检查器，否则会看到上一个仓库的文件差异
-    setInspect(null);
+    // 只在真正换了仓库时关掉检查器；点保存、刷新状态也会重跑这个副作用，
+    // 那时关掉抽屉会让用户正在编辑的内容凭空消失
+    if (loadedRepoRef.current !== selectedId) {
+      loadedRepoRef.current = selectedId;
+      setInspect(null);
+    }
     let cancelled = false;
     setLoadingDetail(true);
     void (async () => {
@@ -142,15 +149,19 @@ export function App() {
         }
 
         setBusy(false);
-        setTaskId(null);
 
         if (current.status === 'failed') {
+          setTaskId(null);
           setAddError(current.error ?? '索引失败');
           return;
         }
 
+        // 先等仓库列表和详情刷新完，再清 taskId。
+        // 提前清会触发本特效的清理，把下面的刷新逻辑自己取消掉（界面停在旧状态）。
         const list = await refreshRepos();
         if (cancelled) return;
+
+        setTaskId(null);
 
         if (afterTask === 'add') {
           setDialogOpen(false);
@@ -354,7 +365,14 @@ export function App() {
         onSubmit={(path) => void handleAdd(path)}
       />
 
-      <InspectorDrawer repoId={selectedId ?? 0} target={inspect} onClose={() => setInspect(null)} />
+      <InspectorDrawer
+        repoId={selectedId ?? 0}
+        repoPath={detail?.summary.path ?? null}
+        target={inspect}
+        onClose={() => setInspect(null)}
+        onGit={(body) => void handleGit(body)}
+        onRefreshStatus={() => setReloadKey((key) => key + 1)}
+      />
     </div>
   );
 }
@@ -464,6 +482,7 @@ function RepoView({
         onRun={onGit}
         onRefresh={onRefreshStatus}
         onOpenDiff={(path, staged) => onInspect({ kind: 'working', path, staged })}
+        onEditConflict={(path) => onInspect({ kind: 'conflict', path })}
       />
 
       <div className="card">

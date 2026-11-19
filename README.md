@@ -100,6 +100,7 @@ docs/              方案、架构、交互规格、问题规则、账号与部�
 | API | health · repos · timeline · refs · commits · graph · status · snapshots · diff · commit-files · commit-diff · git actions · reindex · tasks |
 | 界面 | 摘要卡、自适应热力图、SVG 提交图谱、分支与标签、最近提交、可视化操作台 |
 | 观察 | 点工作区文件看逐行差异；点图谱任意提交看该次改了哪些文件及每个文件的差异（合并提交按第一父比较） |
+| 冲突 | 冲突文件可直接在应用内编辑保存、标记已解决、提交合并结果；也能一键留本地/留对方，或交给系统默认程序打开、在文件夹里定位 |
 | 操作 | 获取远端、拉取、推送、切换/新建/合并/删除分支、打标签、暂存、提交、冲突选边、回滚点 |
 | 桌面 | Electron 便携版 + 安装版；原生目录选择；内嵌 Fastify；随机本地端口 |
 | 质量 | core / server / web 三个包 `tsc --noEmit` 全绿；写操作与差异接口均通过 HTTP 端到端测试 |
