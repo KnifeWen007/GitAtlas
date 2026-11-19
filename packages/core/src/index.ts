@@ -25,3 +25,5 @@ export {
   getRecentCommits,
 } from './analytics/queries.ts';
 export type { CommitListItem } from './analytics/queries.ts';
+export { getGraph } from './analytics/graph.ts';
+export type { GraphCommit, GraphRef, GraphResponse } from './analytics/graph.ts';

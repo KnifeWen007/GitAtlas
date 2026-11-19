@@ -26,6 +26,32 @@ pnpm atlas timeline 1
 
 环境变量：`PORT`（默认 4317）、`ATLAS_DB`（默认 `./data/atlas.db`）、`ATLAS_GIT`（指定 git 可执行文件，桌面端注入内置 git 用）。
 
+## 桌面版（推荐）
+
+Windows 双击即用，不需要装 Node、不需要敲任何命令：
+
+| 产物 | 用法 | 数据位置 |
+| --- | --- | --- |
+| `GitAtlas-Portable-x.y.z.exe` | 便携版，拷到 U 盘也能跑 | exe 同目录的 `data/` |
+| `GitAtlas-Setup-x.y.z.exe` | 安装版，带桌面/开始菜单快捷方式 | `%APPDATA%\GitAtlas\data` |
+
+结构上是**一个 Electron 外壳套住同一个服务**：主进程启动内嵌 HTTP 服务（随机端口、只绑
+127.0.0.1），窗口加载这个地址。前端与 API 天然同源，所以桌面端和网页端跑的是**同一份前端代码**，
+不存在两套实现要维护。
+
+添加仓库时点「选择仓库目录」，走 Windows 原生目录选择器——不用手打路径，这才是"零命令行"。
+
+从源码打包：
+
+```bash
+pnpm install
+pnpm build:desktop:dir   # 只出未打包目录（约 8 秒），先验证再打包
+pnpm build:desktop       # 出便携版 + 安装包，产物在 release/
+```
+
+> 打包脚本必须在**真 Node.js** 里跑：Electron 自带的 node 读 app.asar 会报 ENOENT。
+> `scripts/build-desktop.mjs` 会自动换成真 node 重跑，无需手工处理。
+
 ## 目录
 
 ```

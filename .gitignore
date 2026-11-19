@@ -5,6 +5,7 @@ node_modules/
 dist/
 dist-electron/
 release/
+apps/desktop/build/
 
 # runtime data (index database, logs, backups)
 data/

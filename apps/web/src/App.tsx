@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   api,
   type CommitListItem,
+  type GraphResponse,
   type HealthResponse,
   type RefRecord,
   type RepoRecord,
@@ -11,6 +12,7 @@ import {
 } from './api.ts';
 import { AddRepoDialog } from './components/AddRepoDialog.tsx';
 import { CommitList } from './components/CommitList.tsx';
+import { GraphView } from './components/GraphView.tsx';
 import { Heatmap, HeatmapLegend } from './components/Heatmap.tsx';
 import { RefList } from './components/RefList.tsx';
 import { StatCard } from './components/StatCard.tsx';
@@ -21,6 +23,7 @@ interface RepoDetail {
   timeline: TimelineResponse;
   refs: RefRecord[];
   commits: CommitListItem[];
+  graph: GraphResponse;
 }
 
 function toMessage(error: unknown): string {
@@ -78,14 +81,15 @@ export function App() {
     setLoadingDetail(true);
     void (async () => {
       try {
-        const [summary, timeline, refs, commits] = await Promise.all([
+        const [summary, timeline, refs, commits, graph] = await Promise.all([
           api.summary(selectedId),
           api.timeline(selectedId),
           api.refs(selectedId),
           api.commits(selectedId, 40),
+          api.graph(selectedId, 240),
         ]);
         if (cancelled) return;
-        setDetail({ summary, timeline, refs, commits });
+        setDetail({ summary, timeline, refs, commits, graph });
       } catch (error) {
         if (!cancelled) setGlobalError(toMessage(error));
       } finally {
@@ -239,7 +243,7 @@ export function App() {
             <span className={`dot ${health?.git.available ? 'ok' : 'bad'}`} />
             Git {health?.git.version ?? '未检测到'}
           </div>
-          <div className="mono">API · 127.0.0.1:4317</div>
+          <div className="mono">{health?.url ? health.url.replace(/^https?:\/\//, '') : 'API 未连接'}</div>
         </div>
       </aside>
 
@@ -305,7 +309,7 @@ interface RepoViewProps {
 }
 
 function RepoView({ detail, busy, lastIndexed, onReindex, onRemove }: RepoViewProps) {
-  const { summary, timeline, refs, commits } = detail;
+  const { summary, timeline, refs, commits, graph } = detail;
   const totalChanges = summary.insertions + summary.deletions;
 
   const firstYear = formatDate(summary.firstCommitAt).slice(0, 4);
@@ -368,6 +372,26 @@ function RepoView({ detail, busy, lastIndexed, onReindex, onRemove }: RepoViewPr
           value={`${timeline.totals.activeDays} 天`}
           sub={`${formatNumber(timeline.totals.commits)} 提交 / ${formatNumber(totalChanges)} 行`}
         />
+      </div>
+
+      <div className="card">
+        <div className="card-head">
+          <div className="card-title">
+            提交图谱
+            <span className="hint">每条泳道是一条提交链，弧线是合并</span>
+          </div>
+          <div className="graph-key">
+            <span className="graph-key-item">
+              <i className="dot-node" /> 提交
+            </span>
+            <span className="graph-key-item">
+              <i className="dot-merge" /> 合并
+            </span>
+          </div>
+        </div>
+        <div className="card-body">
+          <GraphView graph={graph} />
+        </div>
       </div>
 
       <div className="card">

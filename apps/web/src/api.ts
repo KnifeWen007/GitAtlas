@@ -5,12 +5,27 @@
  * core 依赖 Node 内置模块，前端只应依赖 HTTP 契约，避免打包时把服务端类型拖进来。
  */
 
+/** 由 Electron preload 注入；网页版不存在 */
+declare global {
+  interface Window {
+    gitatlas?: {
+      desktop: boolean;
+      platform: string;
+      version: string;
+      pickDirectory(): Promise<string | null>;
+    };
+  }
+}
+
 export interface HealthResponse {
   ok: boolean;
   git: { available: boolean; version: string | null };
   db: string;
   repos: number;
   version: string;
+  /** 服务实际监听地址；桌面端是随机端口，不能硬编码 */
+  url: string;
+  desktop: boolean;
 }
 
 export interface RepoRecord {
@@ -90,8 +105,33 @@ export interface CommitListItem {
   isMerge: boolean;
 }
 
-export type IndexPhase = 'validating' | 'refs' | 'commits' | 'aggregating' | 'done' | 'failed';
+export interface GraphRef {
+  name: string;
+  kind: 'branch' | 'tag' | 'remote';
+  isHead: boolean;
+}
 
+export interface GraphCommit {
+  sha: string;
+  shortSha: string;
+  subject: string;
+  authorName: string;
+  authoredAt: string;
+  isMerge: boolean;
+  lane: number;
+  parents: string[];
+  refs: GraphRef[];
+}
+
+export interface GraphResponse {
+  repoId: number;
+  commits: GraphCommit[];
+  laneCount: number;
+  total: number;
+  truncated: boolean;
+}
+
+export type IndexPhase = 'validating' | 'refs' | 'commits' | 'aggregating' | 'done' | 'failed';
 export interface IndexProgress {
   phase: IndexPhase;
   message: string;
@@ -147,6 +187,7 @@ export const api = {
     request<TimelineResponse>(`/api/repos/${id}/timeline${days ? `?days=${days}` : ''}`),
   refs: (id: number) => request<RefRecord[]>(`/api/repos/${id}/refs`),
   commits: (id: number, limit = 40) => request<CommitListItem[]>(`/api/repos/${id}/commits?limit=${limit}`),
+  graph: (id: number, limit = 240) => request<GraphResponse>(`/api/repos/${id}/graph?limit=${limit}`),
   reindex: (id: number) => request<{ taskId: string }>(`/api/repos/${id}/reindex`, { method: 'POST' }),
   remove: (id: number) => request<{ ok: boolean }>(`/api/repos/${id}`, { method: 'DELETE' }),
   task: (id: string) => request<TaskResponse>(`/api/tasks/${id}`),

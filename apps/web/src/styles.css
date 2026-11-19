@@ -536,6 +536,160 @@ body {
   margin-top: 14px;
 }
 
+/* ---------- 提交图谱 ---------- */
+
+.graph-view {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.graph-legend {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.graph-scroll {
+  max-height: 560px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.012), transparent 120px);
+}
+
+.graph-canvas {
+  position: relative;
+}
+
+.graph-svg {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+}
+
+.graph-rows {
+  position: relative;
+}
+
+.graph-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-right: 12px;
+  font-size: 12.5px;
+  border-bottom: 1px solid rgba(29, 40, 57, 0.45);
+  transition: background 120ms ease;
+}
+
+.graph-row.is-hover {
+  background: rgba(34, 211, 238, 0.07);
+}
+
+.graph-refs {
+  display: flex;
+  gap: 4px;
+  flex: 0 0 auto;
+  max-width: 230px;
+  overflow: hidden;
+}
+
+.gref {
+  display: inline-block;
+  max-width: 108px;
+  padding: 1px 6px;
+  border-radius: 5px;
+  font-size: 10.5px;
+  font-family: var(--mono);
+  line-height: 1.5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border: 1px solid transparent;
+}
+
+.gref.branch {
+  color: var(--accent);
+  background: rgba(34, 211, 238, 0.1);
+  border-color: rgba(34, 211, 238, 0.3);
+}
+
+.gref.tag {
+  color: var(--amber);
+  background: rgba(251, 191, 36, 0.1);
+  border-color: rgba(251, 191, 36, 0.28);
+}
+
+.gref.head {
+  color: #05131a;
+  background: var(--accent);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
+.graph-subject {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text);
+}
+
+.graph-subject.is-merge {
+  color: var(--text-dim);
+}
+
+.graph-meta {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+.graph-meta code {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--text-dim);
+}
+
+.graph-key {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.graph-key-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.dot-node {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.dot-merge {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 2px solid var(--violet);
+}
+
 @media (max-width: 1180px) {
   .columns {
     grid-template-columns: minmax(0, 1fr);
