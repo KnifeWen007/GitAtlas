@@ -1,9 +1,30 @@
 import type { RefRecord } from '../api.ts';
 import { formatRelative } from '../format.ts';
 
+function RefRow({ item }: { item: RefRecord }) {
+  return (
+    <div className="ref-row">
+      <div className="ref-name">
+        <span className={`ref-icon ${item.kind}`} />
+        <code>{item.shortName}</code>
+        {item.isHead ? <span className="badge badge-accent">HEAD</span> : null}
+      </div>
+      <div className="ref-meta">
+        {item.ahead !== null && (item.ahead > 0 || (item.behind ?? 0) > 0) ? (
+          <span className="ab">
+            <span className="up">↑{item.ahead}</span> <span className="down">↓{item.behind}</span>
+          </span>
+        ) : null}
+        <span>{formatRelative(item.lastCommitAt)}</span>
+      </div>
+    </div>
+  );
+}
+
 export function RefList({ refs }: { refs: RefRecord[] }) {
   const branches = refs.filter((r) => r.kind === 'branch');
   const tags = refs.filter((r) => r.kind === 'tag');
+  const remotes = refs.filter((r) => r.kind === 'remote');
 
   if (refs.length === 0) {
     return <div className="empty-desc">没有分支或标签</div>;
@@ -11,41 +32,45 @@ export function RefList({ refs }: { refs: RefRecord[] }) {
 
   return (
     <div style={{ maxHeight: 380, overflowY: 'auto', paddingRight: 4 }}>
-      {branches.map((ref) => (
-        <div className="ref-row" key={ref.name}>
-          <div className="ref-name">
-            <span className={`ref-icon ${ref.kind}`} />
-            <code>{ref.shortName}</code>
-            {ref.isHead ? <span className="badge badge-accent">HEAD</span> : null}
-          </div>
-          <div className="ref-meta">
-            {ref.ahead !== null && (ref.ahead > 0 || (ref.behind ?? 0) > 0) ? (
-              <span className="ab">
-                <span className="up">↑{ref.ahead}</span> <span className="down">↓{ref.behind}</span>
-              </span>
-            ) : null}
-            <span>{formatRelative(ref.lastCommitAt)}</span>
-          </div>
-        </div>
+      {branches.map((record) => (
+        <RefRow key={record.name} item={record} />
       ))}
 
-      {tags.length > 0 ? (
-        <div style={{ marginTop: 10 }}>
-          <div className="sidebar-label" style={{ padding: '6px 4px' }}>
-            标签 · {tags.length}
+      {remotes.length > 0 ? (
+        <details style={{ marginTop: 8 }}>
+          <summary
+            className="sidebar-label"
+            style={{ cursor: 'pointer', padding: '6px 4px', listStyle: 'revert' }}
+          >
+            远端分支 · {remotes.length}
+          </summary>
+          <div style={{ marginTop: 4 }}>
+            {remotes.slice(0, 40).map((record) => (
+              <RefRow key={record.name} item={record} />
+            ))}
+            {remotes.length > 40 ? (
+              <div className="ref-meta" style={{ padding: '6px 4px' }}>
+                还有 {remotes.length - 40} 个未显示
+              </div>
+            ) : null}
           </div>
-          {tags.slice(0, 30).map((ref) => (
-            <div className="ref-row" key={ref.name}>
-              <div className="ref-name">
-                <span className="ref-icon tag" />
-                <code>{ref.shortName}</code>
-              </div>
-              <div className="ref-meta">
-                <span>{formatRelative(ref.lastCommitAt)}</span>
-              </div>
-            </div>
-          ))}
-        </div>
+        </details>
+      ) : null}
+
+      {tags.length > 0 ? (
+        <details open style={{ marginTop: 8 }}>
+          <summary
+            className="sidebar-label"
+            style={{ cursor: 'pointer', padding: '6px 4px', listStyle: 'revert' }}
+          >
+            标签 · {tags.length}
+          </summary>
+          <div style={{ marginTop: 4 }}>
+            {tags.slice(0, 40).map((record) => (
+              <RefRow key={record.name} item={record} />
+            ))}
+          </div>
+        </details>
       ) : null}
     </div>
   );

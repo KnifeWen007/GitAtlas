@@ -64,7 +64,7 @@
 
 **选 Electron**。理由是"复用 TS 内核"这一项的收益，远大于体积损失；而移动端需求由 PWA 承接，不需要壳层的跨端能力。若未来体积成为硬约束，迁移成本可控——因为 `core`/`ui` 与壳层无关，只需重写 `apps/desktop` 的进程层。
 
-**原生模块注意**：`better-sqlite3` 需 `electron-rebuild`，CI 里对每个 Electron 版本预编一次；备选 `node:sqlite`（Node 22+ 内置，Electron 跟进后可去掉这个依赖）。
+**原生模块注意**：已放弃 `better-sqlite3`，改用 **Node 内置 `node:sqlite`**（P0 已验证可用）。收益是整条链路零原生模块：`pnpm install` 不需要编译，Electron 打包不需要 `electron-rebuild`，便携版也不带 `.node` 二进制。代价是它仍标注 experimental，因此 `packages/core/src/store/db.ts` 把 SQLite 访问收敛在 `Store` 一个类里，将来若要换回原生驱动，改动面只有这一个文件。
 
 ---
 
@@ -121,7 +121,7 @@ interface StorageAdapter {
 }
 ```
 
-- **桌面/便携**：`better-sqlite3`，单文件，`data/atlas.db`；WAL 模式。
+- **桌面/便携**：`node:sqlite`（内置），单文件，`data/atlas.db`；WAL 模式，`synchronous=NORMAL`。
 - **服务器**：PostgreSQL，同一套 Drizzle schema 分方言生成。
 - **迁移**：drizzle-kit 生成 SQL，启动时自动迁移；迁移失败要能回滚到备份文件（桌面端自动备份 `atlas.db.bak`）。
 
@@ -163,7 +163,7 @@ interface StorageAdapter {
 | 用途 | 库 | 备注 |
 | --- | --- | --- |
 | Git 调用 | `execa`（自封装）| 不用 simple-git：需要精确控制参数与流式读取 |
-| 状态/数据 | `zustand` + `@tanstack/react-query` | UI 态与服务器态分离 |
+| 状态/数据 | `zustand` + `@tanstack/react-query` | UI 态与服务器态分离（P0 尚未引入，先用 useState） |
 | 拖拽 | `@dnd-kit/core` | 同时支持鼠标与触控，移动端同一套 |
 | 分屏面板 | `dockview` | 可拖拽布局、序列化保存 |
 | 图布局 | 自写 + `d3-scale`/`d3-shape` | 布局算法自控，绘制自控 |

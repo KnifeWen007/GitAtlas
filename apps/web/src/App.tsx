@@ -308,6 +308,12 @@ function RepoView({ detail, busy, lastIndexed, onReindex, onRemove }: RepoViewPr
   const { summary, timeline, refs, commits } = detail;
   const totalChanges = summary.insertions + summary.deletions;
 
+  const firstYear = formatDate(summary.firstCommitAt).slice(0, 4);
+  const lastYear = formatDate(summary.lastCommitAt).slice(0, 4);
+  const yearSpan = firstYear === lastYear ? firstYear : `${firstYear}–${lastYear}`;
+  const branchCount = refs.filter((ref) => ref.kind === 'branch').length;
+  const tagCount = refs.filter((ref) => ref.kind === 'tag').length;
+
   return (
     <>
       <header className="main-header">
@@ -353,7 +359,7 @@ function RepoView({ detail, busy, lastIndexed, onReindex, onRemove }: RepoViewPr
         />
         <StatCard
           label="历史跨度"
-          value={`${formatDate(summary.firstCommitAt).slice(0, 4)}–${formatDate(summary.lastCommitAt).slice(0, 4)}`}
+          value={yearSpan}
           sub={`最近提交 ${formatRelative(summary.lastCommitAt)}`}
           tone="red"
         />
@@ -384,7 +390,9 @@ function RepoView({ detail, busy, lastIndexed, onReindex, onRemove }: RepoViewPr
           <div className="card-head">
             <div className="card-title">
               分支与标签
-              <span className="hint">{refs.length} 个引用</span>
+              <span className="hint">
+                {branchCount} 分支 · {tagCount} 标签
+              </span>
             </div>
           </div>
           <div className="card-body">

@@ -60,13 +60,16 @@ export async function listRefs(reader: GitReader): Promise<RawRef[]> {
     '%(objectname)',
     '%(objecttype)',
     '%(committerdate:iso-strict)',
+    // annotated tag 的 committerdate 为空，真正的日期在 taggerdate
+    '%(taggerdate:iso-strict)',
     '%(HEAD)',
   ].join('%00');
 
   const refs: RawRef[] = [];
   for await (const line of reader.lines(['for-each-ref', `--format=${format}`])) {
     if (line.trim().length === 0) continue;
-    const [name = '', shortName = '', targetSha = '', objectType = '', date = '', head = ''] = line.split('\x00');
+    const [name = '', shortName = '', targetSha = '', objectType = '', commitDate = '', tagDate = '', head = ''] =
+      line.split('\x00');
 
     let kind: RawRef['kind'];
     if (name.startsWith('refs/heads/')) kind = 'branch';
@@ -77,12 +80,14 @@ export async function listRefs(reader: GitReader): Promise<RawRef[]> {
     // 远端 origin/HEAD 是符号引用，跳过
     if (kind === 'remote' && shortName.endsWith('/HEAD')) continue;
 
+    const stamp = commitDate.length > 0 ? commitDate : tagDate;
+
     refs.push({
       name,
       shortName,
       targetSha,
       objectType,
-      lastCommitAt: date.length > 0 ? date : null,
+      lastCommitAt: stamp.length > 0 ? stamp : null,
       isHead: head.trim() === '*',
       kind,
     });

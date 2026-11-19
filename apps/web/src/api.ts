@@ -112,13 +112,13 @@ export interface TaskResponse {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(path, {
-    ...init,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(init?.headers ?? {}),
-    },
-  });
+  // 只有真正带 body 时才声明 JSON，否则 Fastify 会以「空的 JSON 体」拒绝
+  const headers: Record<string, string> = { ...((init?.headers as Record<string, string>) ?? {}) };
+  if (init?.body !== undefined && init.body !== null) {
+    headers['Content-Type'] = headers['Content-Type'] ?? 'application/json';
+  }
+
+  const response = await fetch(path, { ...init, headers });
 
   if (!response.ok) {
     let message = `请求失败（${response.status}）`;
