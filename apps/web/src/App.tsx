@@ -345,7 +345,7 @@ export function App() {
 
       <main className="main">
         {globalError ? (
-          <div className="card" style={{ padding: '10px 16px', marginBottom: 14, borderColor: 'rgba(248,113,113,0.4)' }}>
+          <div className="card" style={{ padding: '10px 16px', marginBottom: 14, borderColor: 'rgba(247,118,142,0.4)' }}>
             <span className="error-text">{globalError}</span>
           </div>
         ) : null}

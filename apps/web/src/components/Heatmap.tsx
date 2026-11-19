@@ -7,7 +7,7 @@ const GAP = 2.5;
 const ROW_H = CELL + GAP;
 
 /** 五级色阶：空 → 极少 → 少 → 多 → 很多（青色系，与主题一致） */
-const LEVEL_COLORS = ['#1a2333', '#0d4657', '#0e7185', '#17aec4', '#5ce9f8'];
+const LEVEL_COLORS = ['#1a2130', '#22304a', '#2f4a78', '#4a72b8', '#7aa2f7'];
 
 function levelOf(commits: number): number {
   if (commits <= 0) return 0;

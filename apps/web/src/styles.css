@@ -1,19 +1,28 @@
 :root {
-  --bg: #080b12;
-  --bg-soft: #0c111b;
-  --panel: #101725;
-  --panel-hi: #16202f;
-  --border: #1d2839;
-  --border-soft: #16202e;
-  --text: #e6edf6;
-  --text-dim: #93a2b8;
-  --text-faint: #5f7189;
-  --accent: #22d3ee;
-  --accent-dim: rgba(34, 211, 238, 0.12);
-  --violet: #a78bfa;
-  --green: #34d399;
-  --amber: #fbbf24;
-  --red: #f87171;
+  /* 低饱和冷调：底色近黑偏蓝，主色用淡青蓝，避免整屏高亮刺眼 */
+  --bg: #0a0c11;
+  --bg-soft: #0e121a;
+  --bg-input: #0c1017;
+  --panel: #121722;
+  --panel-hi: #18202e;
+  --border: #222c3c;
+  --border-soft: #1a2331;
+  --text: #e2e8f4;
+  --text-dim: #95a3ba;
+  --text-faint: #66738c;
+  --accent: #7aa2f7;
+  --accent-strong: #5f83dd;
+  --accent-bright: #a6c0ff;
+  --accent-ink: #0a1020;
+  --accent-dim: rgba(122, 162, 247, 0.12);
+  --accent-text: #bacdff;
+  --violet: #bb9af7;
+  --violet-text: #d8c6ff;
+  --green: #9ece6a;
+  --green-text: #b6e08c;
+  --amber: #e0af68;
+  --red: #f7768e;
+  --red-text: #f7b0bd;
   --radius: 14px;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.24);
   --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', 'PingFang SC',
@@ -33,7 +42,7 @@ body,
 
 body {
   margin: 0;
-  background: radial-gradient(1200px 600px at 80% -10%, #10202e 0%, transparent 60%), var(--bg);
+  background: radial-gradient(1200px 600px at 80% -10%, #121a28 0%, transparent 60%), var(--bg);
   color: var(--text);
   font-family: var(--font);
   font-size: 14px;
@@ -42,7 +51,7 @@ body {
 }
 
 ::selection {
-  background: rgba(34, 211, 238, 0.28);
+  background: rgba(122, 162, 247, 0.28);
 }
 
 ::-webkit-scrollbar {
@@ -50,13 +59,13 @@ body {
   height: 10px;
 }
 ::-webkit-scrollbar-thumb {
-  background: #1e293b;
+  background: #232c3a;
   border-radius: 999px;
   border: 2px solid transparent;
   background-clip: padding-box;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #334155;
+  background: #33405a;
   background-clip: padding-box;
 }
 ::-webkit-scrollbar-track {
@@ -104,7 +113,7 @@ body {
   height: 30px;
   border-radius: 9px;
   background: linear-gradient(140deg, var(--accent), var(--violet));
-  box-shadow: 0 0 22px rgba(34, 211, 238, 0.35);
+  box-shadow: 0 0 22px rgba(122, 162, 247, 0.35);
   position: relative;
   flex: none;
 }
@@ -114,7 +123,7 @@ body {
   position: absolute;
   inset: 8px;
   border-radius: 4px;
-  background: #06202a;
+  background: var(--accent-ink);
   box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.55);
 }
 
@@ -177,7 +186,7 @@ body {
 
 .repo-item.active {
   background: linear-gradient(90deg, var(--accent-dim), rgba(30, 41, 59, 0.3));
-  border-color: rgba(34, 211, 238, 0.35);
+  border-color: rgba(122, 162, 247, 0.35);
 }
 
 .repo-item-name {
@@ -217,11 +226,11 @@ body {
 }
 .dot.ok {
   background: var(--green);
-  box-shadow: 0 0 8px rgba(52, 211, 153, 0.7);
+  box-shadow: 0 0 8px rgba(158, 206, 106, 0.7);
 }
 .dot.bad {
   background: var(--red);
-  box-shadow: 0 0 8px rgba(248, 113, 113, 0.7);
+  box-shadow: 0 0 8px rgba(247, 118, 142, 0.7);
 }
 
 /* ---------- 按钮与输入 ---------- */
@@ -245,8 +254,8 @@ body {
 }
 
 .btn:hover {
-  background: #1b2637;
-  border-color: #2a3a52;
+  background: rgba(122, 162, 247, 0.1);
+  border-color: rgba(122, 162, 247, 0.35);
 }
 
 .btn:active {
@@ -259,13 +268,15 @@ body {
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, #0e7490, #0891b2);
-  border-color: rgba(34, 211, 238, 0.5);
-  color: #ecfeff;
+  background: linear-gradient(135deg, #6f92e8, var(--accent-strong));
+  border-color: rgba(122, 162, 247, 0.55);
+  color: var(--accent-ink);
+  font-weight: 600;
+  box-shadow: 0 2px 14px rgba(95, 131, 221, 0.22);
 }
 
 .btn-primary:hover {
-  background: linear-gradient(135deg, #0e7f9e, #06a3c7);
+  background: linear-gradient(135deg, #6f92e8, #86a9f4);
 }
 
 .btn-ghost {
@@ -294,23 +305,23 @@ body {
 .btn-accent {
   background: var(--accent);
   border-color: var(--accent);
-  color: #04161c;
+  color: var(--accent-ink);
   font-weight: 600;
 }
 
 .btn-accent:hover {
-  background: #67e8f9;
-  border-color: #67e8f9;
+  background: var(--accent-bright);
+  border-color: var(--accent-bright);
 }
 
 .btn-danger {
-  background: rgba(248, 113, 113, 0.16);
-  border-color: rgba(248, 113, 113, 0.45);
-  color: #fca5a5;
+  background: rgba(247, 118, 142, 0.16);
+  border-color: rgba(247, 118, 142, 0.45);
+  color: var(--red-text);
 }
 
 .btn-danger:hover {
-  background: rgba(248, 113, 113, 0.26);
+  background: rgba(247, 118, 142, 0.26);
 }
 
 .input {
@@ -318,7 +329,7 @@ body {
   padding: 9px 12px;
   border-radius: 9px;
   border: 1px solid var(--border);
-  background: #0b1220;
+  background: var(--bg-input);
   color: var(--text);
   font: inherit;
   font-size: 13px;
@@ -327,8 +338,8 @@ body {
 }
 
 .input:focus {
-  border-color: rgba(34, 211, 238, 0.6);
-  box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.12);
+  border-color: rgba(122, 162, 247, 0.6);
+  box-shadow: 0 0 0 3px rgba(122, 162, 247, 0.12);
 }
 
 .input::placeholder {
@@ -392,27 +403,27 @@ body {
 }
 
 .badge-accent {
-  border-color: rgba(34, 211, 238, 0.4);
-  background: rgba(34, 211, 238, 0.1);
-  color: #a5f3fc;
+  border-color: rgba(122, 162, 247, 0.4);
+  background: rgba(122, 162, 247, 0.1);
+  color: var(--accent-text);
 }
 
 .badge-violet {
-  border-color: rgba(167, 139, 250, 0.4);
-  background: rgba(167, 139, 250, 0.1);
-  color: #ddd6fe;
+  border-color: rgba(187, 154, 247, 0.4);
+  background: rgba(187, 154, 247, 0.1);
+  color: var(--violet-text);
 }
 
 .badge-warn {
-  border-color: rgba(251, 191, 36, 0.4);
-  background: rgba(251, 191, 36, 0.1);
-  color: #fde68a;
+  border-color: rgba(224, 175, 104, 0.4);
+  background: rgba(224, 175, 104, 0.1);
+  color: #f0d49a;
 }
 
 /* ---------- 卡片 ---------- */
 
 .card {
-  background: linear-gradient(180deg, rgba(22, 32, 47, 0.75), rgba(16, 23, 37, 0.9));
+  background: linear-gradient(180deg, rgba(24, 32, 46, 0.75), rgba(18, 23, 34, 0.9));
   border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
@@ -544,8 +555,8 @@ body {
   position: fixed;
   z-index: 60;
   pointer-events: none;
-  background: #0b1220;
-  border: 1px solid #26354b;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
   border-radius: 9px;
   padding: 7px 10px;
   font-size: 12px;
@@ -620,7 +631,7 @@ body {
 }
 
 .graph-row.is-hover {
-  background: rgba(34, 211, 238, 0.07);
+  background: rgba(122, 162, 247, 0.07);
 }
 
 .graph-refs {
@@ -647,18 +658,18 @@ body {
 
 .gref.branch {
   color: var(--accent);
-  background: rgba(34, 211, 238, 0.1);
-  border-color: rgba(34, 211, 238, 0.3);
+  background: rgba(122, 162, 247, 0.1);
+  border-color: rgba(122, 162, 247, 0.3);
 }
 
 .gref.tag {
   color: var(--amber);
-  background: rgba(251, 191, 36, 0.1);
-  border-color: rgba(251, 191, 36, 0.28);
+  background: rgba(224, 175, 104, 0.1);
+  border-color: rgba(224, 175, 104, 0.28);
 }
 
 .gref.head {
-  color: #05131a;
+  color: var(--accent-ink);
   background: var(--accent);
   border-color: var(--accent);
   font-weight: 600;
@@ -714,8 +725,8 @@ button.gref:hover {
 }
 
 .graph-focus-bar.is-focus {
-  border-color: rgba(34, 211, 238, 0.35);
-  background: rgba(34, 211, 238, 0.07);
+  border-color: rgba(122, 162, 247, 0.35);
+  background: rgba(122, 162, 247, 0.07);
 }
 
 .graph-focus-label b {
@@ -742,15 +753,15 @@ button.gref:hover {
 }
 
 .graph-row.is-mine {
-  background: linear-gradient(90deg, rgba(34, 211, 238, 0.12), transparent 45%);
+  background: linear-gradient(90deg, rgba(122, 162, 247, 0.12), transparent 45%);
 }
 
 .graph-row.is-mine .graph-subject {
-  color: #eaf4ff;
+  color: var(--text);
 }
 
 .graph-row.is-tip {
-  background: rgba(34, 211, 238, 0.16);
+  background: rgba(122, 162, 247, 0.16);
 }
 
 .graph-tip {
@@ -758,7 +769,7 @@ button.gref:hover {
   border-radius: 4px;
   font-size: 10px;
   color: var(--accent);
-  border: 1px dashed rgba(34, 211, 238, 0.55);
+  border: 1px dashed rgba(122, 162, 247, 0.55);
   white-space: nowrap;
 }
 
@@ -843,15 +854,15 @@ button.gref:hover {
 }
 
 .op-message.ok {
-  background: rgba(52, 211, 153, 0.1);
-  border-color: rgba(52, 211, 153, 0.35);
-  color: #a7f3d0;
+  background: rgba(158, 206, 106, 0.1);
+  border-color: rgba(158, 206, 106, 0.35);
+  color: var(--green-text);
 }
 
 .op-message.err {
-  background: rgba(248, 113, 113, 0.1);
-  border-color: rgba(248, 113, 113, 0.38);
-  color: #fecaca;
+  background: rgba(247, 118, 142, 0.1);
+  border-color: rgba(247, 118, 142, 0.38);
+  color: var(--red-text);
 }
 
 .op-status {
@@ -875,24 +886,24 @@ button.gref:hover {
 
 .op-chip.branch {
   color: var(--text);
-  border-color: rgba(34, 211, 238, 0.4);
-  background: rgba(34, 211, 238, 0.1);
+  border-color: rgba(122, 162, 247, 0.4);
+  background: rgba(122, 162, 247, 0.1);
   font-family: var(--mono);
 }
 
 .op-chip.ok {
-  color: #6ee7b7;
-  border-color: rgba(52, 211, 153, 0.35);
+  color: var(--green-text);
+  border-color: rgba(158, 206, 106, 0.35);
 }
 
 .op-chip.warn {
   color: var(--amber);
-  border-color: rgba(251, 191, 36, 0.35);
+  border-color: rgba(224, 175, 104, 0.35);
 }
 
 .op-chip.bad {
   color: var(--red);
-  border-color: rgba(248, 113, 113, 0.45);
+  border-color: rgba(247, 118, 142, 0.45);
 }
 
 .op-chip.up {
@@ -914,8 +925,8 @@ button.gref:hover {
 }
 
 .op-block-alert {
-  border-color: rgba(248, 113, 113, 0.35);
-  background: rgba(248, 113, 113, 0.05);
+  border-color: rgba(247, 118, 142, 0.35);
+  background: rgba(247, 118, 142, 0.05);
 }
 
 .op-block-title {
@@ -939,7 +950,7 @@ button.gref:hover {
   padding: 6px 10px;
   border-radius: 8px;
   border: 1px solid var(--border);
-  background: #0b1220;
+  background: var(--bg-input);
   color: var(--text);
   font: inherit;
   font-size: 12.5px;
@@ -947,7 +958,7 @@ button.gref:hover {
 
 .op-input:focus {
   outline: none;
-  border-color: rgba(34, 211, 238, 0.55);
+  border-color: rgba(122, 162, 247, 0.55);
 }
 
 .op-input-wide {
@@ -976,22 +987,22 @@ button.gref:hover {
 
 .op-code.k-modified {
   color: var(--amber);
-  background: rgba(251, 191, 36, 0.14);
+  background: rgba(224, 175, 104, 0.14);
 }
 
 .op-code.k-added {
   color: var(--green);
-  background: rgba(52, 211, 153, 0.14);
+  background: rgba(158, 206, 106, 0.14);
 }
 
 .op-code.k-deleted {
   color: var(--red);
-  background: rgba(248, 113, 113, 0.14);
+  background: rgba(247, 118, 142, 0.14);
 }
 
 .op-code.k-conflict {
   color: #fff;
-  background: rgba(248, 113, 113, 0.6);
+  background: rgba(247, 118, 142, 0.6);
 }
 
 .op-code.k-untracked {
@@ -1000,7 +1011,7 @@ button.gref:hover {
 
 .op-code.k-staged {
   color: var(--accent);
-  background: rgba(34, 211, 238, 0.14);
+  background: rgba(122, 162, 247, 0.14);
 }
 
 /* sha 比单字符代码宽，固定宽度会让文字压到后面的路径上 */
@@ -1066,7 +1077,7 @@ button.gref:hover {
   width: min(760px, 62vw);
   display: flex;
   flex-direction: column;
-  background: #0a1017;
+  background: var(--bg-input);
   border-left: 1px solid var(--border);
   box-shadow: -24px 0 60px rgba(0, 0, 0, 0.55);
   z-index: 70;
@@ -1151,7 +1162,7 @@ button.gref:hover {
 }
 
 .inspector-file.is-active {
-  background: rgba(34, 211, 238, 0.1);
+  background: rgba(122, 162, 247, 0.1);
   color: var(--text);
 }
 
@@ -1166,18 +1177,18 @@ button.gref:hover {
 
 .inspector-tag.t-added {
   color: var(--green);
-  background: rgba(52, 211, 153, 0.16);
+  background: rgba(158, 206, 106, 0.16);
 }
 
 .inspector-tag.t-deleted {
   color: var(--red);
-  background: rgba(248, 113, 113, 0.16);
+  background: rgba(247, 118, 142, 0.16);
 }
 
 .inspector-tag.t-renamed,
 .inspector-tag.t-copied {
   color: var(--violet);
-  background: rgba(167, 139, 250, 0.18);
+  background: rgba(187, 154, 247, 0.18);
 }
 
 .inspector-path {
@@ -1212,7 +1223,7 @@ button.gref:hover {
   flex-wrap: wrap;
   padding: 10px 16px;
   border-bottom: 1px solid var(--border-soft);
-  background: rgba(248, 113, 113, 0.05);
+  background: rgba(247, 118, 142, 0.05);
 }
 
 .conflict-count {
@@ -1234,7 +1245,7 @@ button.gref:hover {
   padding: 7px 16px;
   font-size: 12px;
   color: var(--accent);
-  background: rgba(34, 211, 238, 0.07);
+  background: rgba(122, 162, 247, 0.07);
   border-bottom: 1px solid var(--border-soft);
 }
 
@@ -1252,7 +1263,7 @@ button.gref:hover {
   border: 0;
   outline: none;
   padding: 12px 16px;
-  background: #070c12;
+  background: var(--bg);
   color: var(--text);
   font-family: var(--mono);
   font-size: 12.5px;
@@ -1261,7 +1272,7 @@ button.gref:hover {
 }
 
 .conflict-input:focus {
-  box-shadow: inset 0 0 0 1px rgba(34, 211, 238, 0.35);
+  box-shadow: inset 0 0 0 1px rgba(122, 162, 247, 0.35);
 }
 
 .diff-body {
@@ -1274,8 +1285,8 @@ button.gref:hover {
   font-size: 11.5px;
   font-family: inherit;
   color: var(--amber);
-  background: rgba(251, 191, 36, 0.08);
-  border-bottom: 1px solid rgba(251, 191, 36, 0.18);
+  background: rgba(224, 175, 104, 0.08);
+  border-bottom: 1px solid rgba(224, 175, 104, 0.18);
 }
 
 .diff-lines {
@@ -1298,7 +1309,7 @@ button.gref:hover {
   width: 46px;
   padding: 0 8px;
   text-align: right;
-  color: #4b5b70;
+  color: var(--text-faint);
   user-select: none;
   font-size: 11px;
 }
@@ -1306,7 +1317,7 @@ button.gref:hover {
 .diff-sign {
   width: 16px;
   text-align: center;
-  color: #55677e;
+  color: var(--text-faint);
   user-select: none;
 }
 
@@ -1318,25 +1329,25 @@ button.gref:hover {
 }
 
 .diff-line.add {
-  background: rgba(52, 211, 153, 0.09);
+  background: rgba(158, 206, 106, 0.09);
 }
 
 .diff-line.add .diff-text,
 .diff-line.add .diff-sign {
-  color: #a7f3d0;
+  color: var(--green-text);
 }
 
 .diff-line.del {
-  background: rgba(248, 113, 113, 0.09);
+  background: rgba(247, 118, 142, 0.09);
 }
 
 .diff-line.del .diff-text,
 .diff-line.del .diff-sign {
-  color: #fecaca;
+  color: var(--red-text);
 }
 
 .diff-line.hunk {
-  background: rgba(34, 211, 238, 0.08);
+  background: rgba(122, 162, 247, 0.08);
 }
 
 .diff-line.hunk .diff-text,
@@ -1345,13 +1356,13 @@ button.gref:hover {
 }
 
 .diff-line.meta .diff-text {
-  color: #6b7f96;
+  color: var(--text-dim);
   font-style: italic;
 }
 
 .diff-error {
   padding: 14px 16px;
-  color: #fecaca;
+  color: var(--red-text);
   font-size: 12.5px;
   font-family: inherit;
 }
@@ -1361,7 +1372,7 @@ button.gref:hover {
 }
 
 .graph-row.is-selected {
-  background: rgba(34, 211, 238, 0.1);
+  background: rgba(122, 162, 247, 0.1);
   box-shadow: inset 2px 0 0 var(--accent);
 }
 
@@ -1526,16 +1537,16 @@ button.gref:hover {
 .progress-track {
   height: 6px;
   border-radius: 999px;
-  background: #16202e;
+  background: var(--border-soft);
   overflow: hidden;
 }
 
 .progress-fill {
   height: 100%;
   border-radius: 999px;
-  background: linear-gradient(90deg, #0891b2, var(--accent));
+  background: linear-gradient(90deg, var(--accent-strong), var(--accent));
   transition: width 240ms ease;
-  box-shadow: 0 0 12px rgba(34, 211, 238, 0.5);
+  box-shadow: 0 0 12px rgba(122, 162, 247, 0.5);
 }
 
 /* ---------- 对话框 ---------- */
@@ -1561,7 +1572,7 @@ button.gref:hover {
 
 .dialog {
   width: min(520px, 100%);
-  background: #101725;
+  background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 16px;
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);

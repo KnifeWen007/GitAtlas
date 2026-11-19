@@ -7,9 +7,27 @@ const LANE_W = 16;
 const PAD_LEFT = 18;
 const MAX_GUTTER = 520;
 
-/** 泳道配色：黄金角 137.5° 撒色相，相邻泳道不会撞色 */
+/**
+ * 泳道配色：前十条用挑好的一组低饱和色（0 号泳道通常是当前分支，配主色），
+ * 再多就按黄金角撒色相，并压低饱和度，避免整屏荧光色。
+ */
+const LANE_PALETTE = [
+  '#7aa2f7',
+  '#73daca',
+  '#bb9af7',
+  '#9ece6a',
+  '#e0af68',
+  '#f7768e',
+  '#7dcfff',
+  '#c8a9e8',
+  '#8fd6a8',
+  '#d9b48c',
+];
+
 function laneColor(lane: number): string {
-  return `hsl(${Math.round((lane * 137.5) % 360)} 72% 62%)`;
+  if (lane < LANE_PALETTE.length) return LANE_PALETTE[lane]!;
+  const hue = Math.round((lane * 137.5) % 360);
+  return `hsl(${hue} 42% 68%)`;
 }
 
 /** 引用名可能带 refs/heads/ 前缀，图上标签用的是短名，比较前先统一 */
@@ -182,7 +200,7 @@ export function GraphView({
                 width={laneWidth}
                 height={height}
                 rx={laneWidth / 2}
-                fill={focusMode ? 'rgba(34, 211, 238, 0.12)' : 'rgba(34, 211, 238, 0.06)'}
+                fill={focusMode ? 'rgba(122, 162, 247, 0.13)' : 'rgba(122, 162, 247, 0.07)'}
               />
             ) : null}
 
@@ -210,7 +228,7 @@ export function GraphView({
                   cx={cx}
                   cy={cy}
                   r={radius}
-                  fill="#0a0f18"
+                  fill="#0e121a"
                   stroke={color}
                   strokeWidth={2.2}
                   opacity={opacity}
