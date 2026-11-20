@@ -23,6 +23,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { ensureElectronRuntime } from './ensure-electron.mjs';
 
 const SELF = fileURLToPath(import.meta.url);
 const ROOT = path.resolve(path.dirname(SELF), '..');
@@ -118,6 +119,10 @@ process.env.ELECTRON_BUILDER_COMPRESSION_LEVEL = level;
 
 /* ---------------- 主流程 ---------------- */
 async function main() {
+  // 0. Electron 运行时：electron 44 起不在 pnpm install 时下载，缺了打包必失败
+  ensureElectronRuntime();
+  step('确保 Electron 运行时');
+
   // 1. 清空产物目录
   fs.rmSync(BUILD, { recursive: true, force: true });
   fs.mkdirSync(BUILD, { recursive: true });

@@ -14,6 +14,7 @@ import { spawn } from 'node:child_process';
 import net from 'node:net';
 import path from 'node:path';
 import fs from 'node:fs';
+import { ensureElectronRuntime } from './ensure-electron.mjs';
 
 const root = path.resolve(import.meta.dirname, '..');
 
@@ -329,8 +330,10 @@ if (!(await waitFor(`${API_URL}/api/health`, '接口服务'))) {
     'dist',
     process.platform === 'win32' ? 'electron.exe' : 'electron',
   );
+  // electron 44 起安装时不再下载二进制，缺了先补上再起窗口
+  ensureElectronRuntime();
   if (!fs.existsSync(electronExe)) {
-    console.log(`没找到 Electron：${electronExe}\n先跑一次 pnpm install。`);
+    console.log(`没找到 Electron：${electronExe}\n先跑一次 node scripts/ensure-electron.mjs。`);
     shutdown(1);
   } else {
     run(

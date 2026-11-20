@@ -39,6 +39,10 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # electron 44 起不在安装时下载二进制，打包前显式补齐；单独一步方便看日志
+      - name: Ensure Electron runtime
+        run: node scripts/ensure-electron.mjs
+
       - name: Typecheck
         run: pnpm typecheck
 
