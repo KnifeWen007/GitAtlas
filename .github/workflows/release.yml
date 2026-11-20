@@ -1,0 +1,67 @@
+# 推送 v* 标签时，在 Windows runner 上打包桌面端并把产物挂到 GitHub Release。
+#
+# 本地打包（pnpm build:desktop）和这里走同一个脚本，所以两边产物一致；
+# 脚本里 electron-builder 的 publish 是 'never'，上传交给下面的 action，
+# 免得 electron-builder 和 action 各传一份。
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '要重新发布的标签（例如 v0.1.0）'
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    name: Build Windows x64
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build portable and installer
+        run: pnpm build:desktop
+
+      - name: List artifacts
+        shell: pwsh
+        run: |
+          Get-ChildItem release -File |
+            Where-Object { $_.Extension -eq '.exe' } |
+            Select-Object Name, Length
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag || github.ref_name }}
+          name: GitAtlas ${{ inputs.tag || github.ref_name }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: |
+            release/GitAtlas-Portable-*.exe
+            release/GitAtlas-Setup-*.exe
