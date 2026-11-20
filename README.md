@@ -19,6 +19,8 @@
   <a href="#项目结构">项目结构</a>
 </p>
 
+<p align="center">简体中文 · <a href="README.en.md">English</a></p>
+
 GitAtlas 是一个面向本地 Git 仓库的可视化工具。添加仓库后，可以查看分支和合并关系、浏览逐文件差异，并完成暂存、提交和冲突处理。Windows 桌面版和浏览器界面共用同一套工作流。
 
 ![GitAtlas 提交图谱中的分支泳道、合并连线和标签](docs/images/commit-graph.webp)
