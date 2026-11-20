@@ -1,3 +1,4 @@
+import { useTranslation } from '../i18n.ts';
 import type { CSSProperties } from 'react';
 
 interface StatCardProps {
@@ -42,11 +43,12 @@ function Spark({ values, color }: { values: number[]; color: string }) {
 
 /** 增删比例：绿色占比就是新增行所占的份量 */
 function Ratio({ up, down }: { up: number; down: number }) {
+  const { t, language } = useTranslation();
   const total = up + down;
   const share = total === 0 ? 0 : Math.round((up / total) * 100);
   const style = { '--ratio-up': `${share}%` } as CSSProperties;
   return (
-    <span className="stat-ratio" style={style} title={`新增 ${up.toLocaleString('zh-CN')} 行 · 删除 ${down.toLocaleString('zh-CN')} 行`}>
+    <span className="stat-ratio" style={style} title={t("新增 {0} 行 · 删除 {1} 行", up.toLocaleString(language), down.toLocaleString(language))}>
       <span className="stat-ratio-bar" />
       <span className="stat-ratio-text">{total === 0 ? '—' : `${share}%`}</span>
     </span>

@@ -1,11 +1,14 @@
+import { translateMessage, useTranslation } from '../i18n.ts';
 import { useEffect, useState } from 'react';
 import { api, type CommitFile, type FileDiff, type GitActionBody, type WorkingFileContent } from '../api.ts';
 import { formatDate } from '../format.ts';
 import { DiffBody } from './DiffBody.tsx';
+import type { ConfirmRequest } from './ConfirmDialog.tsx';
 
 export type InspectTarget =
   | { kind: 'working'; path: string; staged: boolean }
-  | { kind: 'commit'; sha: string; subject: string; authorName: string; authoredAt: string }
+  | { kind: 'commit'; sha: string; subject: string; authorName: string; authoredAt: string; path?: string | null }
+  | { kind: 'file'; path: string }
   | { kind: 'conflict'; path: string };
 
 interface InspectorDrawerProps {
@@ -14,6 +17,7 @@ interface InspectorDrawerProps {
   repoPath: string | null;
   target: InspectTarget | null;
   onClose: () => void;
+  onConfirm: (request: ConfirmRequest) => void;
   onGit: (body: GitActionBody) => void;
   onRefreshStatus: () => void;
 }
@@ -41,7 +45,8 @@ function absolutePath(repoPath: string | null, filePath: string): string | null 
  * 右侧检查器：看差异、看提交改了哪些文件，冲突时还能直接在这里改。
  * 两种查看入口共用一个抽屉，避免屏幕上出现两套"看改动"的地方。
  */
-export function InspectorDrawer({ repoId, repoPath, target, onClose, onGit, onRefreshStatus }: InspectorDrawerProps) {
+export function InspectorDrawer({ repoId, repoPath, target, onClose, onConfirm, onGit, onRefreshStatus }: InspectorDrawerProps) {
+  const { t } = useTranslation();
   const [diff, setDiff] = useState<FileDiff | null>(null);
   const [files, setFiles] = useState<CommitFile[] | null>(null);
   const [active, setActive] = useState<string | null>(null);
@@ -56,20 +61,30 @@ export function InspectorDrawer({ repoId, repoPath, target, onClose, onGit, onRe
   const [jumpError, setJumpError] = useState<string | null>(null);
 
   const commitSha = target?.kind === 'commit' ? target.sha : null;
-  const conflictPath = target?.kind === 'conflict' ? target.path : null;
+  const commitPath = target?.kind === 'commit' ? target.path : null;
+  const conflict = target?.kind === 'conflict';
+  const editorPath = target?.kind === 'file' || conflict ? target.path : null;
   const dirty = file !== null && draft !== file.text;
 
   const desktop = Boolean(window.gitatlas?.desktop);
 
-  // Esc 关闭
+  const close = () => {
+    if (saving) return;
+    if (dirty) {
+      onConfirm({ title: t("放弃未保存的编辑？"), body: t("关闭编辑器将丢弃未保存的内容。"), confirmLabel: t("放弃编辑"), danger: true, onConfirm: onClose });
+    } else {
+      onClose();
+    }
+  };
+
   useEffect(() => {
     if (!target) return;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
+      if (event.key === 'Escape' && !document.querySelector('[aria-modal="true"]')) close();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [target, onClose]);
+  });
 
   // 打开某次提交：先取文件清单，默认选中第一个
   useEffect(() => {
@@ -89,7 +104,8 @@ export function InspectorDrawer({ repoId, repoPath, target, onClose, onGit, onRe
         const list = await api.commitFiles(repoId, commitSha);
         if (cancelled) return;
         setFiles(list);
-        setActive(list[0]?.path ?? null);
+        const matching = commitPath ? list.find((entry) => entry.path === commitPath || entry.oldPath === commitPath) : undefined;
+        setActive(matching?.path ?? (commitPath || list[0]?.path) ?? null);
       } catch (caught) {
         if (!cancelled) setError(message(caught));
       } finally {
@@ -99,14 +115,15 @@ export function InspectorDrawer({ repoId, repoPath, target, onClose, onGit, onRe
     return () => {
       cancelled = true;
     };
-  }, [repoId, commitSha]);
+  }, [repoId, commitSha, commitPath]);
 
   // 取差异：工作区单文件，或提交里选中的文件
   useEffect(() => {
-    if (!target || target.kind === 'conflict') return;
+    if (target?.kind !== 'working' && target?.kind !== 'commit') return;
     if (target.kind === 'commit' && !active) return;
 
     let cancelled = false;
+    setDiff(null);
     setLoading(true);
     setError(null);
     void (async () => {
@@ -137,7 +154,7 @@ export function InspectorDrawer({ repoId, repoPath, target, onClose, onGit, onRe
 
   // 冲突文件：载入正文到编辑器
   useEffect(() => {
-    if (!conflictPath) {
+    if (!editorPath) {
       setFile(null);
       setDraft('');
       return;
@@ -150,7 +167,7 @@ export function InspectorDrawer({ repoId, repoPath, target, onClose, onGit, onRe
     setLoading(true);
     void (async () => {
       try {
-        const loaded = await api.file(repoId, conflictPath);
+        const loaded = await api.file(repoId, editorPath);
         if (cancelled) return;
         setFile(loaded);
         setDraft(loaded.text);
@@ -163,40 +180,44 @@ export function InspectorDrawer({ repoId, repoPath, target, onClose, onGit, onRe
     return () => {
       cancelled = true;
     };
-  }, [repoId, conflictPath]);
+  }, [repoId, editorPath]);
 
   if (!target) return null;
 
-  const heading = target.kind === 'working' ? target.path : target.kind === 'conflict' ? target.path : target.subject;
+  const heading = target.kind === 'commit' ? target.subject : target.path;
   const sub =
     target.kind === 'working'
       ? target.staged
-        ? '暂存区里这个文件的改动'
-        : '工作区里这个文件还没暂存的改动'
+        ? t("暂存区里这个文件的改动")
+        : t("工作区里这个文件还没暂存的改动")
       : target.kind === 'conflict'
-        ? '合并冲突：把标记清掉，或直接选一边'
-        : `${target.sha.slice(0, 8)} · ${target.authorName} · ${formatDate(target.authoredAt)} · 这次提交改了哪些文件`;
+        ? t("合并冲突：把标记清掉，或直接选一边")
+        : target.kind === 'file'
+          ? t("工作区文件")
+          : t("{0} · {1} · {2} · 这次提交改了哪些文件", target.sha.slice(0, 8), target.authorName, formatDate(target.authoredAt));
 
   const jump = async (action: 'open' | 'reveal') => {
     const absolute = absolutePath(repoPath, heading);
     if (!absolute || !window.gitatlas) return;
     setJumpError(null);
     const result = action === 'open' ? await window.gitatlas.openPath(absolute) : await window.gitatlas.revealPath(absolute);
-    if (!result.ok) setJumpError(result.error ?? '调用系统程序失败');
+    if (!result.ok) setJumpError(result.error ?? t("调用系统程序失败"));
   };
 
   const save = async () => {
-    if (!conflictPath) return;
+    if (!editorPath || !file?.revision) return;
     setSaving(true);
     setSaveNote(null);
     try {
-      const result = await api.saveFile(repoId, conflictPath, draft);
+      const content = /\r\n/.test(file.text) && !/(?<!\r)\n|\r(?!\n)/.test(file.text) ? draft.replace(/\r?\n/g, '\r\n') : draft;
+      const result = await api.saveFile(repoId, editorPath, content, file.revision);
+      setDraft(content);
       setSaveNote(
-        result.conflictMarkers === 0
-          ? '已保存，冲突标记清干净了，点「标记为已解决」'
-          : `已保存，还剩 ${result.conflictMarkers} 段冲突标记`,
+        !conflict ? t("文件已保存") : result.conflictMarkers === 0
+          ? t("已保存，冲突标记清干净了，点「标记为已解决」")
+          : t("已保存，还剩 {0} 段冲突标记", result.conflictMarkers),
       );
-      setFile((previous) => (previous ? { ...previous, text: draft, conflictMarkers: result.conflictMarkers } : previous));
+      setFile({ ...file, text: content, revision: result.revision, conflictMarkers: result.conflictMarkers });
       onRefreshStatus();
     } catch (caught) {
       setSaveNote(message(caught));
@@ -208,7 +229,7 @@ export function InspectorDrawer({ repoId, repoPath, target, onClose, onGit, onRe
   const markers = file ? (file.text === draft ? file.conflictMarkers : countMarkers(draft)) : 0;
 
   return (
-    <aside className="inspector" aria-label="改动检查器">
+    <aside className="inspector" aria-label={t("改动检查器")}>
       <div className="inspector-head">
         <div className="inspector-titles">
           <div className="inspector-title" title={heading}>
@@ -226,28 +247,28 @@ export function InspectorDrawer({ repoId, repoPath, target, onClose, onGit, onRe
           {/* 跳转只对工作区/冲突文件有意义：提交里的 heading 是提交说明，不是路径 */}
           {desktop && target.kind !== 'commit' ? (
             <>
-              <button className="btn btn-sm btn-ghost" onClick={() => void jump('open')} title="用系统默认程序打开这个文件">
-                用默认程序打开
+              <button className="btn btn-sm btn-ghost" onClick={() => void jump('open')} title={t("用系统默认程序打开这个文件")}>
+                {t("用默认程序打开")}
               </button>
-              <button className="btn btn-sm btn-ghost" onClick={() => void jump('reveal')} title="在文件管理器里定位">
-                在文件夹里显示
+              <button className="btn btn-sm btn-ghost" onClick={() => void jump('reveal')} title={t("在文件管理器里定位")}>
+                {t("在文件夹里显示")}
               </button>
             </>
           ) : null}
-          <button className="btn btn-sm btn-ghost" onClick={onClose}>
-            关闭
+          <button className="btn btn-sm btn-ghost" onClick={close} disabled={saving}>
+            {t("关闭")}
           </button>
         </div>
       </div>
 
-      {jumpError ? <div className="diff-note">{jumpError}</div> : null}
+      {jumpError ? <div className="diff-note">{translateMessage(jumpError)}</div> : null}
 
       {target.kind === 'commit' ? (
         <div className="inspector-files">
           {files === null ? (
-            <div className="empty-desc">正在读取文件清单…</div>
+            <div className="empty-desc">{t("正在读取文件清单…")}</div>
           ) : files.length === 0 ? (
-            <div className="empty-desc">这次提交没有改动文件</div>
+            <div className="empty-desc">{t("这次提交没有改动文件")}</div>
           ) : (
             files.map((entry) => (
               <button
@@ -256,7 +277,7 @@ export function InspectorDrawer({ repoId, repoPath, target, onClose, onGit, onRe
                 onClick={() => setActive(entry.path)}
                 title={entry.oldPath ? `${entry.oldPath} → ${entry.path}` : entry.path}
               >
-                <span className={`inspector-tag t-${entry.status}`}>{STATUS_TEXT[entry.status]}</span>
+                <span className={`inspector-tag t-${entry.status}`}>{t(STATUS_TEXT[entry.status])}</span>
                 <span className="inspector-path">{entry.path}</span>
                 <span className="inspector-count">
                   {entry.binary ? '—' : `+${entry.added} −${entry.removed}`}
@@ -267,65 +288,67 @@ export function InspectorDrawer({ repoId, repoPath, target, onClose, onGit, onRe
         </div>
       ) : null}
 
-      {target.kind === 'conflict' ? (
+      {editorPath ? (
         <>
           <div className="conflict-bar">
-            <span className={`conflict-count${markers === 0 ? ' is-clean' : ''}`}>
-              {markers === 0 ? '没有冲突标记' : `还剩 ${markers} 段冲突`}
-            </span>
+            {conflict ? <span className={`conflict-count${markers === 0 ? ' is-clean' : ''}`}>
+              {markers === 0 ? t("没有冲突标记") : t("还剩 {0} 段冲突", markers)}
+            </span> : null}
             <div className="conflict-actions">
-              <button className="btn btn-sm" disabled={busy(saving, loading)} onClick={() => void save()}>
-                {saving ? '保存中…' : '保存'}
+              <button className="btn btn-sm" disabled={busy(saving, loading) || !file?.revision || !dirty} onClick={() => void save()}>
+                {saving ? t("保存中…") : t("保存")}
+              </button>
+              {conflict ? <><button
+                className="btn btn-sm btn-ghost"
+                disabled={busy(saving, loading)}
+                onClick={() => {
+                  onGit({ action: 'resolveConflict', path: editorPath, side: 'ours' });
+                  onClose();
+                }}
+              >
+                {t("用本地版本")}
               </button>
               <button
                 className="btn btn-sm btn-ghost"
                 disabled={busy(saving, loading)}
                 onClick={() => {
-                  onGit({ action: 'resolveConflict', path: conflictPath as string, side: 'ours' });
+                  onGit({ action: 'resolveConflict', path: editorPath, side: 'theirs' });
                   onClose();
                 }}
               >
-                用本地版本
-              </button>
-              <button
-                className="btn btn-sm btn-ghost"
-                disabled={busy(saving, loading)}
-                onClick={() => {
-                  onGit({ action: 'resolveConflict', path: conflictPath as string, side: 'theirs' });
-                  onClose();
-                }}
-              >
-                用对方版本
+                {t("用对方版本")}
               </button>
               <button
                 className="btn btn-sm btn-accent"
                 disabled={busy(saving, loading) || dirty}
-                title={dirty ? '先保存再标记' : '把文件加入暂存区，冲突即视为解决'}
+                title={dirty ? t("先保存再标记") : t("把文件加入暂存区，冲突即视为解决")}
                 onClick={() => {
-                  onGit({ action: 'stage', paths: [conflictPath as string] });
+                  onGit({ action: 'stage', paths: [editorPath] });
                   onClose();
                 }}
               >
-                标记为已解决
-              </button>
+                {t("标记为已解决")}
+              </button></> : null}
             </div>
           </div>
-          {saveNote ? <div className="conflict-note">{saveNote}</div> : null}
+          {saveNote ? <div className="conflict-note">{translateMessage(saveNote)}</div> : null}
           <div className="inspector-editor">
-            {file === null ? (
-              <div className="empty-desc">正在读取文件…</div>
-            ) : file.note ? (
-              <div className="diff-error">{file.note}</div>
+            {error ? <div className="diff-error" role="alert">{translateMessage(error)}</div> : file === null ? (
+              <div className="empty-desc">{t("正在读取文件…")}</div>
+            ) : file.note && !file.truncated ? (
+              <div className="diff-error">{translateMessage(file.note)}</div>
             ) : (
               <textarea
                 className="conflict-input"
                 spellCheck={false}
                 value={draft}
+                readOnly={saving || file.truncated}
                 onChange={(event) => setDraft(event.target.value)}
-                aria-label="冲突文件内容"
+                aria-label={conflict ? t("冲突文件内容") : t("文件内容")}
               />
             )}
           </div>
+          {file?.truncated && file.note ? <div className="diff-note">{translateMessage(file.note)}</div> : null}
         </>
       ) : (
         <div className="inspector-body">

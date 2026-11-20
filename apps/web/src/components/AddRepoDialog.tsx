@@ -1,3 +1,4 @@
+import { translateMessage, useTranslation } from '../i18n.ts';
 import { useEffect, useRef, useState } from 'react';
 import type { TaskResponse } from '../api.ts';
 
@@ -20,6 +21,7 @@ const PHASE_LABEL: Record<string, string> = {
 };
 
 export function AddRepoDialog({ open, busy, task, error, onClose, onSubmit }: AddRepoDialogProps) {
+  const { t, language } = useTranslation();
   const [value, setValue] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -46,7 +48,7 @@ export function AddRepoDialog({ open, busy, task, error, onClose, onSubmit }: Ad
 
   const browse = async () => {
     if (busy) return;
-    const picked = await window.gitatlas?.pickDirectory();
+    const picked = await window.gitatlas?.pickDirectory(language);
     if (!picked) return;
     setValue(picked);
     onSubmit(picked);
@@ -62,8 +64,8 @@ export function AddRepoDialog({ open, busy, task, error, onClose, onSubmit }: Ad
         if (event.target === event.currentTarget && !busy) onClose();
       }}
     >
-      <div className="dialog" role="dialog" aria-modal="true" aria-label="添加仓库">
-        <div className="dialog-head">添加仓库</div>
+      <div className="dialog" role="dialog" aria-modal="true" aria-label={t("添加仓库")}>
+        <div className="dialog-head">{t("添加仓库")}</div>
         <div className="dialog-body">
           {isDesktop ? (
             <button
@@ -72,7 +74,7 @@ export function AddRepoDialog({ open, busy, task, error, onClose, onSubmit }: Ad
               onClick={() => void browse()}
               disabled={busy}
             >
-              {busy ? '正在索引…' : '选择仓库目录…'}
+              {busy ? t("正在索引…") : t("选择仓库目录…")}
             </button>
           ) : (
             <input
@@ -91,8 +93,8 @@ export function AddRepoDialog({ open, busy, task, error, onClose, onSubmit }: Ad
 
           <div className="dialog-hint">
             {isDesktop
-              ? '选择本地 Git 仓库所在的文件夹，GitAtlas 会直接读取它，不会修改任何文件。'
-              : '填入本地 Git 仓库路径。'}
+              ? t("选择本地 Git 仓库所在的文件夹，GitAtlas 会直接读取它，不会修改任何文件。")
+              : t("填入本地 Git 仓库路径。")}
           </div>
 
           {isDesktop && value ? (
@@ -105,7 +107,7 @@ export function AddRepoDialog({ open, busy, task, error, onClose, onSubmit }: Ad
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
                 <span style={{ color: 'var(--text-dim)' }}>
-                  {PHASE_LABEL[progress.phase] ?? progress.phase} · {progress.message}
+                  {t(PHASE_LABEL[progress.phase] ?? progress.phase)} · {translateMessage(progress.message)}
                 </span>
                 {progress.processed > 0 ? (
                   <span className="mono" style={{ color: 'var(--text-faint)' }}>
@@ -125,21 +127,21 @@ export function AddRepoDialog({ open, busy, task, error, onClose, onSubmit }: Ad
             </div>
           ) : null}
 
-          {error ? <div className="error-text">{error}</div> : null}
+          {error ? <div className="error-text">{translateMessage(error)}</div> : null}
         </div>
 
         <div className="dialog-foot">
           <button className="btn btn-ghost" onClick={onClose} disabled={busy}>
-            {busy ? '后台继续' : '取消'}
+            {busy ? t("后台继续") : t("取消")}
           </button>
           {isDesktop ? null : (
             <button className="btn btn-primary" onClick={submit} disabled={busy || value.trim().length === 0}>
               {busy ? (
                 <>
-                  <span className="spinner" /> 索引中
+                  <span className="spinner" /> {t("索引中")}
                 </>
               ) : (
-                '开始索引'
+                t("开始索引")
               )}
             </button>
           )}

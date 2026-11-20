@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { GitReader } from './reader.ts';
-import { writeWorkingFile } from './file.ts';
+import { readWorkingFile, writeWorkingFile } from './file.ts';
 import { resolveInsideRepo } from './safe-path.ts';
 
 /** .gitignore 里的一行 */
@@ -18,7 +18,7 @@ export interface IgnoreRule {
 }
 
 export interface IgnoreFile {
-  /** 固定是仓库根的 .gitignore */
+  /** 相对于仓库根目录的 .gitignore 路径 */
   path: string;
   exists: boolean;
   text: string;
@@ -91,10 +91,10 @@ export function parseIgnore(text: string): IgnoreRule[] {
   });
 }
 
-function toIgnoreFile(text: string, exists: boolean): IgnoreFile {
+function toIgnoreFile(text: string, exists: boolean, filePath: string): IgnoreFile {
   const rules = parseIgnore(text);
   return {
-    path: IGNORE_FILE,
+    path: filePath,
     exists,
     text,
     rules,
@@ -103,24 +103,31 @@ function toIgnoreFile(text: string, exists: boolean): IgnoreFile {
 }
 
 /** 读仓库根的 .gitignore；不存在时给一个空文件而不是报错 */
-export async function readIgnoreFile(root: string): Promise<IgnoreFile> {
-  try {
-    const filePath = await resolveInsideRepo(root, IGNORE_FILE);
-    const text = await fs.readFile(filePath, 'utf8');
-    return toIgnoreFile(text, true);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return toIgnoreFile('', false);
-    throw error;
+export async function readIgnoreFile(root: string, directory = ''): Promise<IgnoreFile> {
+  const filePath = await ignorePath(root, directory);
+  const file = await readWorkingFile(root, filePath);
+  if (file.binary || file.truncated) throw new Error(file.note ?? '无法读取 .gitignore');
+  return toIgnoreFile(file.text, file.exists, filePath);
+}
+
+async function ignorePath(root: string, directory: string): Promise<string> {
+  if (!directory) return IGNORE_FILE;
+  const absolute = await resolveInsideRepo(root, directory);
+  if (!(await fs.stat(absolute)).isDirectory()) {
+    throw new Error('请选择工作区中存在的目录');
   }
+  const relative = path.relative(await fs.realpath(root), absolute).split(path.sep).join('/');
+  return relative ? `${relative}/${IGNORE_FILE}` : IGNORE_FILE;
 }
 
 /** 整份覆盖写回；沿用写文件那条路径校验，顺便挡住超长内容 */
 export async function writeIgnoreFile(
   root: string,
   text: string,
+  directory = '',
 ): Promise<{ ok: boolean; path: string; bytes: number; lineCount: number }> {
   if (text.includes('\0')) throw new Error('.gitignore 里不能有二进制内容');
-  const saved = await writeWorkingFile(root, IGNORE_FILE, text);
+  const saved = await writeWorkingFile(root, await ignorePath(root, directory), text);
   return { ok: true, path: saved.path, bytes: saved.bytes, lineCount: text.split('\n').length };
 }
 
@@ -132,13 +139,14 @@ export async function writeIgnoreFile(
 export async function addIgnoreRule(
   root: string,
   pattern: string,
+  directory = '',
 ): Promise<{ file: IgnoreFile; added: boolean }> {
   const rawRule = pattern.replace(/[\r\n]+$/, '');
   if (rawRule.length === 0) throw new Error('忽略规则不能为空');
   if (/[\r\n]/.test(rawRule)) throw new Error('一条规则只能占一行');
   if (rawRule.startsWith('#')) throw new Error('以 # 开头是注释，不是忽略规则');
 
-  const current = await readIgnoreFile(root);
+  const current = await readIgnoreFile(root, directory);
   const negated = rawRule.startsWith('!');
   const normalizedPattern = stripUnescapedTrailingSpaces(negated ? rawRule.slice(1) : rawRule);
   if (!normalizedPattern) throw new Error('忽略规则不能为空');
@@ -150,13 +158,13 @@ export async function addIgnoreRule(
   // Follow the file's existing newline convention and terminate the appended rule.
   const lineEnding = splitLines(current.text).find((line) => line.ending)?.ending ?? '\n';
   const base = current.text.length === 0 || /[\r\n]$/.test(current.text) ? current.text : `${current.text}${lineEnding}`;
-  await writeIgnoreFile(root, `${base}${rawRule}${lineEnding}`);
-  return { file: await readIgnoreFile(root), added: true };
+  await writeIgnoreFile(root, `${base}${rawRule}${lineEnding}`, directory);
+  return { file: await readIgnoreFile(root, directory), added: true };
 }
 
 /** 按行号删掉一条规则；注释和空行也允许删 */
-export async function removeIgnoreRule(root: string, line: number): Promise<IgnoreFile> {
-  const current = await readIgnoreFile(root);
+export async function removeIgnoreRule(root: string, line: number, directory = ''): Promise<IgnoreFile> {
+  const current = await readIgnoreFile(root, directory);
   if (!current.exists) throw new Error('这个仓库还没有 .gitignore');
   if (!Number.isInteger(line) || line < 1 || line > current.rules.length) {
     throw new Error(`行号 ${line} 超出了 .gitignore 的范围`);
@@ -168,8 +176,8 @@ export async function removeIgnoreRule(root: string, line: number): Promise<Igno
     lines[line - 2]!.ending = '';
   }
   lines.splice(line - 1, 1);
-  await writeIgnoreFile(root, joinLines(lines));
-  return readIgnoreFile(root);
+  await writeIgnoreFile(root, joinLines(lines), directory);
+  return readIgnoreFile(root, directory);
 }
 
 /**
@@ -182,6 +190,7 @@ export async function checkIgnore(
   gitPath: string | undefined,
   repoPath: string,
   filePath: string,
+  directory = false,
 ): Promise<IgnoreMatch | null> {
   if (!filePath || filePath.endsWith('/') || (process.platform === 'win32' && filePath.endsWith('\\'))) {
     throw new Error('请指定单个文件路径');
@@ -192,12 +201,11 @@ export async function checkIgnore(
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
     throw error;
   });
-  if (info?.isDirectory()) throw new Error('请指定单个文件，而不是目录');
   if (info?.isSymbolicLink()) throw new Error('不支持检查符号链接目标');
   const relative = path.relative(await fs.realpath(repoPath), safePath).split(path.sep).join('/');
   const out = await reader.tryRun(
     ['check-ignore', '-v', '-z', '--no-index', '--stdin'],
-    `${relative}\0`,
+    `${directory || info?.isDirectory() ? `${relative}/` : relative}\0`,
   );
   if (!out) return null;
 

@@ -1,6 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App.tsx';
+import { loadLanguage } from './i18n.ts';
 import { applyTheme, loadTheme, loadThemeAsync } from './theme.ts';
 import './styles.css';
 
@@ -13,7 +14,7 @@ async function bootstrap() {
   applyTheme(loadTheme());
 
   // 桌面端配色存在 userData 里，读回来再渲染一次，首帧就是上次选的那套
-  const settings = await loadThemeAsync();
+  const [settings] = await Promise.all([loadThemeAsync(), loadLanguage()]);
   applyTheme(settings);
 
   createRoot(root).render(

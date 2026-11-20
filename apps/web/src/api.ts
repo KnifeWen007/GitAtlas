@@ -12,7 +12,9 @@ declare global {
       desktop: boolean;
       platform: string;
       version: string;
-      pickDirectory(): Promise<string | null>;
+      pickDirectory(language?: 'zh-CN' | 'en'): Promise<string | null>;
+      readLanguage?(): Promise<string | null>;
+      writeLanguage?(language: 'zh-CN' | 'en'): Promise<void>;
       /** 用系统默认程序打开文件 */
       openPath(filePath: string): Promise<{ ok: boolean; error?: string }>;
       /** 在文件管理器里定位文件 */
@@ -33,6 +35,7 @@ export interface WorkingFileContent {
   truncated: boolean;
   size: number;
   exists: boolean;
+  revision: string | null;
   note: string | null;
   /** 还剩几段冲突标记（<<<<<<<） */
   conflictMarkers: number;
@@ -209,6 +212,7 @@ export interface GitActionBody {
   target?: string;
   path?: string;
   paths?: string[];
+  untracked?: boolean;
   side?: 'ours' | 'theirs';
   force?: boolean;
   message?: string;
@@ -288,6 +292,7 @@ export interface TreeEntry {
   staged: boolean;
   /** 是否有未暂存的改动 */
   unstaged: boolean;
+  untracked?: boolean;
   /** 文件字节数；目录或超出预算时为 null */
   size: number | null;
   directory: boolean;
@@ -297,6 +302,9 @@ export interface TreeListing {
   entries: TreeEntry[];
   truncated: boolean;
   total: number;
+  offset: number;
+  limit: number;
+  nextOffset: number | null;
   counts: { tracked: number; untracked: number; ignored: number; changed: number };
   hasGitignore: boolean;
 }
@@ -334,6 +342,7 @@ export interface FileCommit {
   authoredAt: string;
   insertions: number;
   deletions: number;
+  path: string | null;
 }
 
 export interface FileDetail {
@@ -416,31 +425,33 @@ export const api = {
   remotes: (id: number) => request<RemoteInfo[]>(`/api/repos/${id}/remotes`),
   file: (id: number, path: string) =>
     request<WorkingFileContent>(`/api/repos/${id}/file?path=${encodeURIComponent(path)}`),
-  saveFile: (id: number, path: string, content: string) =>
-    request<{ ok: boolean; path: string; bytes: number; conflictMarkers: number }>(`/api/repos/${id}/file`, {
+  saveFile: (id: number, path: string, content: string, revision?: string) =>
+    request<{ ok: boolean; path: string; bytes: number; conflictMarkers: number; revision: string }>(`/api/repos/${id}/file`, {
       method: 'PUT',
-      body: JSON.stringify({ path, content }),
+      body: JSON.stringify({ path, content, revision }),
     }),
   reindex: (id: number) => request<{ taskId: string }>(`/api/repos/${id}/reindex`, { method: 'POST' }),
   remove: (id: number) => request<{ ok: boolean }>(`/api/repos/${id}`, { method: 'DELETE' }),
   task: (id: string) => request<TaskResponse>(`/api/tasks/${id}`),
-  tree: (id: number, includeIgnored = false) =>
-    request<TreeListing>(`/api/repos/${id}/tree?ignored=${includeIgnored ? '1' : '0'}`),
-  fileDetail: (id: number, path: string) =>
-    request<FileDetail>(`/api/repos/${id}/file-detail?path=${encodeURIComponent(path)}`),
-  ignore: (id: number) => request<IgnoreFile>(`/api/repos/${id}/ignore`),
-  saveIgnore: (id: number, text: string) =>
+  tree: (id: number, includeIgnored: boolean, query: string, offset: number, limit: number, signal?: AbortSignal) =>
+    request<TreeListing>(`/api/repos/${id}/tree?${new URLSearchParams({
+      ignored: includeIgnored ? '1' : '0', q: query, offset: String(offset), limit: String(limit),
+    })}`, signal ? { signal } : undefined),
+  fileDetail: (id: number, path: string, directory = false) =>
+    request<FileDetail>(`/api/repos/${id}/file-detail?path=${encodeURIComponent(path)}${directory ? '&directory=1' : ''}`),
+  ignore: (id: number, directory: string) => request<IgnoreFile>(`/api/repos/${id}/ignore?directory=${encodeURIComponent(directory)}`),
+  saveIgnore: (id: number, text: string, directory: string) =>
     request<{ ok: boolean; path: string; bytes: number; lineCount: number }>(`/api/repos/${id}/ignore`, {
       method: 'PUT',
-      body: JSON.stringify({ text }),
+      body: JSON.stringify({ text, directory }),
     }),
-  addIgnore: (id: number, pattern: string) =>
+  addIgnore: (id: number, pattern: string, directory: string) =>
     request<{ file: IgnoreFile; added: boolean }>(`/api/repos/${id}/ignore`, {
       method: 'POST',
-      body: JSON.stringify({ pattern }),
+      body: JSON.stringify({ pattern, directory }),
     }),
-  removeIgnore: (id: number, line: number) =>
-    request<IgnoreFile>(`/api/repos/${id}/ignore?line=${line}`, { method: 'DELETE' }),
+  removeIgnore: (id: number, line: number, directory: string) =>
+    request<IgnoreFile>(`/api/repos/${id}/ignore?line=${line}&directory=${encodeURIComponent(directory)}`, { method: 'DELETE' }),
   checkIgnore: (id: number, path: string) =>
     request<{ match: IgnoreMatch | null }>(`/api/repos/${id}/ignore/check?path=${encodeURIComponent(path)}`),
 };

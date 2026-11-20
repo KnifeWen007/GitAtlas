@@ -1,5 +1,10 @@
+import { getLanguage, translate } from './i18n.ts';
+
+const englishNumbers = new Intl.NumberFormat('en', { notation: 'compact' });
+
 export function formatNumber(value: number): string {
   if (!Number.isFinite(value)) return '—';
+  if (getLanguage() === 'en') return englishNumbers.format(value);
   // 中文语境里「1.2 万」比「12.3k」更好读，超过一万就换单位
   if (Math.abs(value) >= 10000) {
     const wan = value / 10000;
@@ -27,20 +32,22 @@ export function formatMonthDay(iso: string | null): string {
 }
 
 export function formatRelative(iso: string | null): string {
-  if (!iso) return '从未';
+  const language = getLanguage();
+  const t = (source: string, ...values: unknown[]) => translate(language, source, ...values);
+  if (!iso) return t("从未");
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '—';
   const diff = Date.now() - d.getTime();
   const min = Math.floor(diff / 60000);
-  if (min < 1) return '刚刚';
-  if (min < 60) return `${min} 分钟前`;
+  if (min < 1) return t("刚刚");
+  if (min < 60) return t("{0} 分钟前", min);
   const hour = Math.floor(min / 60);
-  if (hour < 24) return `${hour} 小时前`;
+  if (hour < 24) return t("{0} 小时前", hour);
   const day = Math.floor(hour / 24);
-  if (day < 30) return `${day} 天前`;
+  if (day < 30) return t("{0} 天前", day);
   const month = Math.floor(day / 30);
-  if (month < 12) return `${month} 个月前`;
-  return `${Math.floor(month / 12)} 年前`;
+  if (month < 12) return t("{0} 个月前", month);
+  return t("{0} 年前", Math.floor(month / 12));
 }
 
 export function shortSha(sha: string): string {

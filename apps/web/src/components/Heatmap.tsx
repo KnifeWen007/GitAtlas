@@ -1,3 +1,4 @@
+import { useTranslation } from '../i18n.ts';
 import { useMemo, useState } from 'react';
 import type { TimelineDay } from '../api.ts';
 import { formatNumber, longestStreak } from '../format.ts';
@@ -6,7 +7,9 @@ const CELL = 11;
 const GAP = 2.5;
 const ROW_H = CELL + GAP;
 /** 左侧星期标签占的宽度 */
-const LABEL_W = 20;
+const LABEL_W = 26;
+const monthFormatter = new Intl.DateTimeFormat('en', { month: 'short', timeZone: 'UTC' });
+const monthNames = Array.from({ length: 12 }, (_, index) => monthFormatter.format(new Date(Date.UTC(2020, index))));
 
 /** 五级色阶：空 → 极少 → 少 → 多 → 很多（青色系，与主题一致） */
 const LEVEL_COLORS = ['var(--heat-0)', 'var(--heat-1)', 'var(--heat-2)', 'var(--heat-3)', 'var(--heat-4)'];
@@ -33,6 +36,7 @@ interface Cell {
 }
 
 export function Heatmap({ days }: { days: TimelineDay[] }) {
+  const { t, language } = useTranslation();
   const [tip, setTip] = useState<{ x: number; y: number; day: TimelineDay } | null>(null);
 
   const layout = useMemo(() => {
@@ -49,13 +53,13 @@ export function Heatmap({ days }: { days: TimelineDay[] }) {
 
     const weeks = Math.ceil((offset + days.length) / 7);
 
-    const monthMarks: Array<{ col: number; label: string }> = [];
+    const monthMarks: Array<{ col: number; month: number }> = [];
     let lastMonth = -1;
     for (const cell of cells) {
       const date = new Date(`${cell.day.date}T00:00:00Z`);
       const month = date.getUTCMonth();
       if (month !== lastMonth) {
-        monthMarks.push({ col: cell.col, label: `${month + 1}月` });
+        monthMarks.push({ col: cell.col, month });
         lastMonth = month;
       }
     }
@@ -88,7 +92,7 @@ export function Heatmap({ days }: { days: TimelineDay[] }) {
   return (
     <div className="heatmap-block">
       <div className="heatmap-wrap">
-        <svg width={width} height={height + 16} viewBox={`0 0 ${width} ${height + 16}`} role="img" aria-label="提交活动热力图">
+        <svg width={width} height={height + 16} viewBox={`0 0 ${width} ${height + 16}`} role="img" aria-label={t("提交活动热力图")}>
           <g transform={`translate(${LABEL_W}, 14)`}>
             {layout.cells.map((cell) => (
               <rect
@@ -103,23 +107,23 @@ export function Heatmap({ days }: { days: TimelineDay[] }) {
                 onMouseEnter={(event) => setTip({ x: event.clientX, y: event.clientY, day: cell.day })}
                 onMouseLeave={() => setTip(null)}
               >
-                <title>{`${cell.day.date} · ${cell.day.commits} 个提交`}</title>
+                <title>{t("{0} · {1} 个提交", cell.day.date, cell.day.commits)}</title>
               </rect>
             ))}
             {layout.months.map((mark) => (
-              <text key={`${mark.label}-${mark.col}`} className="heatmap-month" x={mark.col * (CELL + GAP)} y={-4}>
-                {mark.label}
+              <text key={mark.col} className="heatmap-month" x={mark.col * (CELL + GAP)} y={-4}>
+                {language === 'en' ? monthNames[mark.month] : t("{0}月", mark.month + 1)}
               </text>
             ))}
           </g>
           {WEEKDAY_LABELS.map((label) => (
             <text
-              key={label.text}
+              key={t(label.text)}
               className="heatmap-weekday"
               x={0}
               y={14 + label.row * ROW_H + CELL - 2.5}
             >
-              {label.text}
+              {t(label.text)}
             </text>
           ))}
         </svg>
@@ -128,8 +132,8 @@ export function Heatmap({ days }: { days: TimelineDay[] }) {
           <div className="tooltip" style={tipStyle}>
             <div>{tip.day.date}</div>
             <div className="muted">
-              {tip.day.commits} 个提交
-              {tip.day.merges > 0 ? ` · ${tip.day.merges} 次合并` : ''}
+              {tip.day.commits} {t("个提交")}
+              {tip.day.merges > 0 ? t(" · {0} 次合并", tip.day.merges) : ''}
               {tip.day.commits > 0
                 ? ` · +${formatNumber(tip.day.insertions)} −${formatNumber(tip.day.deletions)}`
                 : ''}
@@ -140,15 +144,15 @@ export function Heatmap({ days }: { days: TimelineDay[] }) {
 
       <div className="heat-foot">
         <span>
-          区间内 <b>{formatNumber(layout.commits)}</b> 个提交
+          {t("区间内")} <b>{formatNumber(layout.commits)}</b> {t("个提交")}
         </span>
         <span className="heat-dot" aria-hidden="true" />
         <span>
-          <b>{layout.activeDays}</b> 天有提交
+          <b>{layout.activeDays}</b> {t("天有提交")}
         </span>
         <span className="heat-dot" aria-hidden="true" />
         <span>
-          最长连续 <b>{layout.streak}</b> 天
+          {t("最长连续")} <b>{layout.streak}</b> {t("天")}
         </span>
       </div>
     </div>
@@ -156,9 +160,10 @@ export function Heatmap({ days }: { days: TimelineDay[] }) {
 }
 
 export function HeatmapLegend() {
+  const { t } = useTranslation();
   return (
     <div className="heat-legend">
-      <span>少</span>
+      <span>{t("少")}</span>
       {LEVEL_COLORS.map((color) => (
         <span
           key={color}
@@ -171,7 +176,7 @@ export function HeatmapLegend() {
           }}
         />
       ))}
-      <span>多</span>
+      <span>{t("多")}</span>
     </div>
   );
 }

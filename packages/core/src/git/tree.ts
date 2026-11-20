@@ -6,7 +6,7 @@ import { getStatus, type ChangeKind } from './ops.ts';
 /** 一次最多返回多少条：十万文件的仓库不能把整个列表塞进浏览器 */
 const MAX_ENTRIES = 20_000;
 /** 低于这个数量才逐个 stat 取大小；再往上就是白等 */
-const STAT_BUDGET = 1_500;
+const STAT_BUDGET = 500;
 
 export type TreeState = 'tracked' | 'untracked' | 'ignored';
 
@@ -20,6 +20,8 @@ export interface TreeEntry {
   staged: boolean;
   /** 是否有未暂存的改动（未跟踪文件也算） */
   unstaged: boolean;
+  /** A working copy can be untracked while its deletion is staged. */
+  untracked?: boolean;
   /** 文件字节数；超出预算或读不到时为 null */
   size: number | null;
   /** 被忽略的是整个目录时，这条是目录而不是文件 */
@@ -30,6 +32,9 @@ export interface TreeListing {
   entries: TreeEntry[];
   truncated: boolean;
   total: number;
+  offset: number;
+  limit: number;
+  nextOffset: number | null;
   counts: { tracked: number; untracked: number; ignored: number; changed: number };
   hasGitignore: boolean;
 }
@@ -57,102 +62,75 @@ function readerFor(gitPath: string | undefined, repoPath: string): GitReader {
 export async function listWorkingTree(
   gitPath: string | undefined,
   repoPath: string,
-  options: { includeIgnored?: boolean; withSize?: boolean } = {},
+  options: { includeIgnored?: boolean; withSize?: boolean; query?: string; offset?: number; limit?: number } = {},
 ): Promise<TreeListing> {
   const reader = readerFor(gitPath, repoPath);
+  const needle = options.query?.trim().toLowerCase() ?? '';
+  const requestedLimit = options.limit ?? MAX_ENTRIES;
+  const limit = Number.isSafeInteger(requestedLimit) ? Math.max(1, Math.min(MAX_ENTRIES, requestedLimit)) : MAX_ENTRIES;
+  const requestedOffset = options.offset ?? 0;
+  const offset = Number.isSafeInteger(requestedOffset) ? Math.max(0, requestedOffset) : 0;
 
-  const [trackedOut, untrackedOut] = await Promise.all([
-    reader.run(['--literal-pathspecs', 'ls-files', '-z', '--cached']),
-    reader.run(['--literal-pathspecs', 'ls-files', '-z', '--others', '--exclude-standard']),
+  const [trackedOut, status, ignoredOut] = await Promise.all([
+    reader.run(['ls-files', '-z', '--cached']),
+    getStatus(gitPath, repoPath, false),
+    options.includeIgnored ? reader.run([
+      'ls-files', '-z', '--others', '--ignored', '--exclude-standard', ...(needle ? [] : ['--directory']),
+    ]) : '',
   ]);
 
-  let tracked = splitNul(trackedOut).map(normalise);
-  const untracked = splitNul(untrackedOut).map(normalise);
-
-  let ignored: Array<{ path: string; directory: boolean }> = [];
-  if (options.includeIgnored) {
-    const out = await reader.run([
-      '--literal-pathspecs',
-      'ls-files',
-      '-z',
-      '--others',
-      '--ignored',
-      '--exclude-standard',
-      '--directory',
-    ]);
-    ignored = splitNul(out)
-      .map((raw) => normalise(raw))
-      .map((raw) =>
-        raw.endsWith('/')
-          ? { path: raw.replace(/\/+$/, ''), directory: true }
-          : { path: raw, directory: false },
-      );
-  }
+  const tracked = new Set(splitNul(trackedOut).map(normalise));
+  const untracked = new Map(status.untracked.map((file) => [normalise(file.path).replace(/\/+$/, ''), file.path.endsWith('/')]));
+  const ignored = splitNul(ignoredOut).map((raw) => ({ path: normalise(raw).replace(/\/+$/, ''), directory: raw.endsWith('/') }));
 
   // 改动标记复用 status：一次 porcelain=v2 解析，比逐文件 diff 便宜得多
-  const status = await getStatus(gitPath, repoPath).catch(() => null);
   const changeOf = new Map<string, ChangeKind>();
   const stagedPaths = new Set<string>();
   const unstagedPaths = new Set<string>();
-  const trackedSet = new Set(tracked);
-  if (status) {
-    for (const file of status.staged) {
-      const filePath = normalise(file.path);
-      changeOf.set(filePath, file.kind);
-      stagedPaths.add(filePath);
-      // A staged deletion is no longer present in the index; keep it visible from status.
-      if (file.kind === 'deleted' && !trackedSet.has(filePath)) {
-        tracked.push(filePath);
-        trackedSet.add(filePath);
-      }
-    }
-    for (const file of status.unstaged) {
-      const filePath = normalise(file.path);
-      changeOf.set(filePath, file.kind);
-      unstagedPaths.add(filePath);
-      if (file.kind === 'deleted' && !trackedSet.has(filePath)) {
-        tracked.push(filePath);
-        trackedSet.add(filePath);
-      }
-    }
-    for (const file of status.untracked) {
-      changeOf.set(normalise(file.path), 'untracked');
-      unstagedPaths.add(normalise(file.path));
-    }
-    // 冲突优先级最高，最后写能盖住前面的
-    for (const file of status.conflicts) {
-      const filePath = normalise(file.path);
-      changeOf.set(filePath, 'conflict');
-      stagedPaths.add(filePath);
-      unstagedPaths.add(filePath);
-      if (!trackedSet.has(filePath)) {
-        tracked.push(filePath);
-        trackedSet.add(filePath);
-      }
-    }
+  for (const file of status.staged) {
+    const filePath = normalise(file.path);
+    changeOf.set(filePath, file.kind);
+    stagedPaths.add(filePath);
+    // A staged deletion is absent from the index but still belongs in the tree.
+    if (file.kind === 'deleted') tracked.add(filePath);
+  }
+  for (const file of status.unstaged) {
+    const filePath = normalise(file.path);
+    changeOf.set(filePath, file.kind);
+    unstagedPaths.add(filePath);
+    if (file.kind === 'deleted') tracked.add(filePath);
+  }
+  // Conflicts take precedence over the staged and unstaged status.
+  for (const file of status.conflicts) {
+    const filePath = normalise(file.path);
+    changeOf.set(filePath, 'conflict');
+    stagedPaths.add(filePath);
+    unstagedPaths.add(filePath);
+    tracked.add(filePath);
   }
 
-  const changed = new Set([...stagedPaths, ...unstagedPaths]).size;
-  const total = tracked.length + untracked.length + ignored.length;
-  const truncated = total > MAX_ENTRIES;
-
-  const entries: TreeEntry[] = [];
-
-  const push = (entry: TreeEntry) => {
-    if (entries.length >= MAX_ENTRIES) return;
-    entries.push(entry);
+  const changed = new Set([...stagedPaths, ...unstagedPaths, ...untracked.keys()]).size;
+  const matches: Array<{ path: string; state: TreeState; directory: boolean }> = [];
+  const push = (path: string, state: TreeState, directory = false) => {
+    if (!needle || path.toLowerCase().includes(needle)) matches.push({ path, state, directory });
   };
-
-  for (const p of tracked) {
-    const change = changeOf.get(p) ?? null;
-    push({ path: p, state: 'tracked', change, staged: stagedPaths.has(p), unstaged: unstagedPaths.has(p), size: null, directory: false });
-  }
-  for (const p of untracked) {
-    push({ path: p, state: 'untracked', change: 'untracked', staged: stagedPaths.has(p), unstaged: true, size: null, directory: false });
+  for (const p of tracked) push(p, 'tracked');
+  for (const [filePath, directory] of untracked) {
+    if (!tracked.has(filePath)) push(filePath, 'untracked', directory);
   }
   for (const entry of ignored) {
-    push({ path: entry.path, state: 'ignored', change: null, staged: false, unstaged: false, size: null, directory: entry.directory });
+    if (!tracked.has(entry.path)) push(entry.path, 'ignored', entry.directory);
   }
+
+  matches.sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
+  const entries: TreeEntry[] = matches.slice(offset, offset + limit).map((entry) => ({
+    ...entry,
+    change: entry.state === 'untracked' ? 'untracked' : entry.state === 'tracked' ? changeOf.get(entry.path) ?? null : null,
+    staged: entry.state !== 'ignored' && stagedPaths.has(entry.path),
+    unstaged: entry.state !== 'ignored' && (untracked.has(entry.path) || unstagedPaths.has(entry.path)),
+    untracked: entry.state !== 'ignored' && untracked.has(entry.path),
+    size: null,
+  }));
 
   // 文件不多时顺手把大小带上，详情面板就不用再单独点一次
   if (options.withSize !== false && entries.length <= STAT_BUDGET) {
@@ -163,15 +141,17 @@ export async function listWorkingTree(
     .then((info) => info.isFile() && !info.isSymbolicLink())
     .catch(() => false);
 
-  entries.sort((a, b) => a.path.localeCompare(b.path));
-
+  const total = matches.length;
   return {
     entries,
-    truncated,
+    truncated: total > limit,
     total,
+    offset,
+    limit,
+    nextOffset: offset + entries.length < total ? offset + entries.length : null,
     counts: {
-      tracked: tracked.length,
-      untracked: untracked.length,
+      tracked: tracked.size,
+      untracked: untracked.size,
       ignored: ignored.length,
       changed,
     },

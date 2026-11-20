@@ -4,12 +4,14 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
-import { addIgnoreRule, parseIgnore, removeIgnoreRule, checkIgnore } from './ignore.ts';
+import { addIgnoreRule, parseIgnore, readIgnoreFile, removeIgnoreRule, checkIgnore } from './ignore.ts';
 import { resolveInsideRepo } from './safe-path.ts';
 import { parseFileHistory, getFileDetail } from './inspect.ts';
 import { listWorkingTree } from './tree.ts';
+import { readWorkingFile, writeWorkingFile } from './file.ts';
+import { discardPaths, unstagePaths } from './ops.ts';
 
-async function withGitRepo(run: (root: string) => Promise<void>): Promise<void> {
+async function withGitRepo(run: (root: string, git: (args: string[]) => string) => Promise<void>): Promise<void> {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'gitatlas-git-'));
   try {
     const git = (args: string[]) => {
@@ -22,7 +24,7 @@ async function withGitRepo(run: (root: string) => Promise<void>): Promise<void> 
     git(['init', '-q']);
     git(['config', 'user.name', 'GitAtlas Test']);
     git(['config', 'user.email', 'test@example.invalid']);
-    await run(root);
+    await run(root, git);
   } finally {
     await fs.rm(root, { recursive: true, force: true });
   }
@@ -179,6 +181,57 @@ test('listWorkingTree 显示变更、暂存状态和忽略目录', async () => {
     assert.equal(detail.lines, 1);
     assert.equal(detail.history.length, 1);
     assert.equal(detail.lastCommit?.subject, 'initial');
+
+    const directory = await getFileDetail(undefined, root, 'src');
+    assert.equal(directory.isDirectory, true);
+    assert.equal(directory.tracked, true);
+    assert.equal(directory.commitCount, 1);
+    const ignoredDirectory = await getFileDetail(undefined, root, 'ignored-dir');
+    assert.equal(ignoredDirectory.isDirectory, true);
+    assert.equal(ignoredDirectory.ignored, true);
+
+    const firstPage = await listWorkingTree(undefined, root, { limit: 1, withSize: false });
+    const nextPage = await listWorkingTree(undefined, root, { limit: 1, offset: firstPage.nextOffset!, withSize: false });
+    assert.notEqual(firstPage.entries[0]?.path, nextPage.entries[0]?.path);
+    const matches = await listWorkingTree(undefined, root, { limit: 1, query: 'TRACKED.TS', withSize: false });
+    assert.deepEqual(matches.entries.map((entry) => entry.path), ['src/tracked.ts']);
+
+    await addIgnoreRule(root, '*.log', 'src');
+    assert.equal((await readIgnoreFile(root, 'src')).text, '*.log\n');
+    assert.equal((await checkIgnore(undefined, root, 'src/report.log'))?.source, 'src/.gitignore');
+  });
+});
+
+test('文件历史保留重命名前的路径，取消暂存重命名会同时恢复索引里的原路径', async () => {
+  await withGitRepo(async (root, git) => {
+    const names = ['原文件.txt', '阶段一.txt', '阶段二.txt'];
+    await fs.writeFile(path.join(root, names[0]!), 'file contents\n');
+    git(['add', names[0]!]);
+    git(['commit', '-qm', 'initial']);
+    git(['mv', names[0]!, names[1]!]);
+    git(['commit', '-qm', 'rename']);
+    const detail = await getFileDetail(undefined, root, names[1]!);
+    assert.deepEqual(detail.history.map((item) => item.path), [names[1], names[0]]);
+
+    git(['mv', names[1]!, names[2]!]);
+    assert.equal((await unstagePaths(undefined, root, [names[2]!])).ok, true);
+    assert.equal(git(['diff', '--cached', '--name-only']), '');
+    assert.equal((await discardPaths(undefined, root, [names[2]!], true)).ok, true);
+    await assert.rejects(fs.stat(path.join(root, names[2]!)), { code: 'ENOENT' });
+  });
+});
+
+test('文本编辑器检测到磁盘内容变化时保留外部修改', async () => {
+  await withGitRepo(async (root) => {
+    const filePath = path.join(root, 'file.txt');
+    await fs.writeFile(filePath, 'first\r\n');
+    const initial = await readWorkingFile(root, 'file.txt');
+    assert.ok(initial.revision);
+    const saved = await writeWorkingFile(root, 'file.txt', 'next\r\n', initial.revision);
+    assert.equal(await fs.readFile(filePath, 'utf8'), 'next\r\n');
+    await fs.writeFile(filePath, 'external change\r\n');
+    await assert.rejects(writeWorkingFile(root, 'file.txt', 'stale edit', saved.revision), /其他程序修改/);
+    assert.equal(await fs.readFile(filePath, 'utf8'), 'external change\r\n');
   });
 });
 

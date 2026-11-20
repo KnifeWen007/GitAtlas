@@ -1,3 +1,4 @@
+import { useTranslation } from '../i18n.ts';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import type { BranchScope, GraphResponse } from '../api.ts';
 import { parseConventional, typeHint } from '../commit-format.ts';
@@ -66,6 +67,7 @@ export function GraphView({
   currentBranch,
   onFocus,
 }: GraphViewProps) {
+  const { t } = useTranslation();
   const { commits, laneCount, total, truncated } = graph;
   const [hover, setHover] = useState<string | null>(null);
   /** 键盘光标：↑↓ 在提交之间走，Enter 打开，Esc 取消 */
@@ -107,7 +109,7 @@ export function GraphView({
   }, [cursor]);
 
   if (commits.length === 0) {
-    return <div className="empty-desc">没有提交</div>;
+    return <div className="empty-desc">{t("没有提交")}</div>;
   }
 
   const open = (index: number) => {
@@ -203,27 +205,27 @@ export function GraphView({
         {focusMode ? (
           <>
             <span className="graph-focus-label">
-              只看分支 <b>{focusedShort}</b>
+              {t("只看分支")} <b>{focusedShort}</b>
             </span>
             <span className="graph-focus-meta">
-              图中 {mineCount} 个提交
-              {focus && focus.ahead !== null ? ` · 领先 ${focus.ahead} / 落后 ${focus.behind}` : ''}
+              {t("图中")} {mineCount} {t("个提交")}
+              {focus && focus.ahead !== null ? t(" · 领先 {0} / 落后 {1}", focus.ahead, focus.behind) : ''}
             </span>
             <button className="btn btn-xs btn-ghost" onClick={() => onFocus?.(null)}>
-              回到总览
+              {t("回到总览")}
             </button>
           </>
         ) : (
           <>
             <span className="graph-focus-label">
-              你在 <b>{currentShort ?? '未知分支'}</b>
+              {t("你在")} <b>{currentShort ?? t("未知分支")}</b>
             </span>
             <span className="graph-focus-meta">
-              这条分支在图中 {mineCount} 个提交，左侧亮线就是它
+              {t("这条分支在图中")} {mineCount} {t("个提交，左侧亮线就是它")}
             </span>
             {currentBranch ? (
               <button className="btn btn-xs btn-ghost" onClick={() => onFocus?.(currentShort ?? currentBranch)}>
-                只看这条
+                {t("只看这条")}
               </button>
             ) : null}
           </>
@@ -231,18 +233,18 @@ export function GraphView({
       </div>
 
       <div className="graph-legend">
-        <span>{commits.length} 个提交</span>
+        <span>{commits.length} {t("个提交")}</span>
         <span>·</span>
-        <span>{laneCount} 条泳道</span>
+        <span>{laneCount} {t("条泳道")}</span>
         {truncated ? (
           <>
             <span>·</span>
-            <span>共 {total} 个，图中显示最近的一部分</span>
+            <span>{t("共")} {total} {t("个，图中显示最近的一部分")}</span>
           </>
         ) : null}
         <span className="graph-legend-keys">
           <kbd>↑</kbd>
-          <kbd>↓</kbd> 选行 <kbd>Enter</kbd> 打开
+          <kbd>↓</kbd> {t("选行")} <kbd>Enter</kbd> {t("打开")}
         </span>
       </div>
 
@@ -253,7 +255,7 @@ export function GraphView({
           tabIndex={0}
           onKeyDown={onKeyDown}
           onBlur={() => setCursor(null)}
-          aria-label="提交图谱，可用上下方向键选择提交"
+          aria-label={t("提交图谱，可用上下方向键选择提交")}
         >
           <div className="graph-canvas" style={{ height }}>
             <svg className="graph-svg" width={gutter} height={height} aria-hidden="true">
@@ -324,14 +326,14 @@ export function GraphView({
                     onMouseEnter={() => setHover(commit.sha)}
                     onMouseLeave={() => setHover(null)}
                     onClick={() => open(row)}
-                    title={`${commit.shortSha} · ${commit.authorName} · ${formatDate(commit.authoredAt)}\n${commit.subject}\n点击看这次改了哪些文件`}
+                    title={t("{0} · {1} · {2}\n{3}\n点击看这次改了哪些文件", commit.shortSha, commit.authorName, formatDate(commit.authoredAt), commit.subject)}
                   >
                     <div className="graph-refs">
                       {shown.map((ref) => (
                         <button
                           key={ref.name}
                           className={`gref ${ref.kind}${ref.isHead ? ' head' : ''}`}
-                          title={`${ref.kind === 'tag' ? '标签' : '分支'} ${ref.name}｜点一下只看这条分支`}
+                          title={t("{0} {1}｜点一下只看这条分支", ref.kind === 'tag' ? t('标签') : t('分支'), ref.name)}
                           onClick={(event) => {
                             event.stopPropagation();
                             if (ref.kind === 'branch') onFocus?.(ref.name);
@@ -345,13 +347,13 @@ export function GraphView({
                           +{rest}
                         </span>
                       ) : null}
-                      {isTip ? <span className="graph-tip">分支头</span> : null}
+                      {isTip ? <span className="graph-tip">{t("分支头")}</span> : null}
                     </div>
 
                     <div className={`graph-subject${commit.isMerge ? ' is-merge' : ''}`}>
                       {parsed ? (
                         <>
-                          <span className={`ctype-chip ctype-${parsed.type}`} title={`${parsed.type} · ${typeHint(parsed.type)}`}>
+                          <span className={`ctype-chip ctype-${parsed.type}`} title={`${parsed.type} · ${t(typeHint(parsed.type))}`}>
                             {parsed.type}
                             {parsed.scope ? <em>({parsed.scope})</em> : null}
                             {parsed.breaking ? '!' : null}

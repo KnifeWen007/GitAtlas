@@ -1,3 +1,4 @@
+import { translateMessage, useTranslation } from '../i18n.ts';
 export interface ToastItem {
   id: number;
   text: string;
@@ -14,6 +15,7 @@ interface ToastsProps {
  * 不用回头去操作台顶部找那一行字。
  */
 export function Toasts({ items, onDismiss }: ToastsProps) {
+  const { t } = useTranslation();
   if (items.length === 0) return null;
 
   return (
@@ -21,8 +23,8 @@ export function Toasts({ items, onDismiss }: ToastsProps) {
       {items.map((item) => (
         <div key={item.id} className={`toast ${item.tone}`}>
           <span className={`toast-dot ${item.tone}`} aria-hidden="true" />
-          <span className="toast-text">{item.text}</span>
-          <button className="toast-close" onClick={() => onDismiss(item.id)} aria-label="关闭提示">
+          <span className="toast-text">{translateMessage(item.text)}</span>
+          <button className="toast-close" onClick={() => onDismiss(item.id)} aria-label={t("关闭提示")}>
             ×
           </button>
         </div>

@@ -1,3 +1,4 @@
+import { useTranslation } from '../i18n.ts';
 import type { CommitListItem } from '../api.ts';
 import { authorHue, authorInitial, formatDate, formatNumber, formatMonthDay, shortSha } from '../format.ts';
 
@@ -9,8 +10,9 @@ interface CommitListProps {
 }
 
 export function CommitList({ commits, onSelect, selectedSha }: CommitListProps) {
+  const { t } = useTranslation();
   if (commits.length === 0) {
-    return <div className="empty-desc">没有提交记录</div>;
+    return <div className="empty-desc">{t("没有提交记录")}</div>;
   }
 
   return (
@@ -52,7 +54,7 @@ export function CommitList({ commits, onSelect, selectedSha }: CommitListProps) 
             <span>{formatMonthDay(commit.authoredAt)}</span>
             <span className="commit-diff">
               {commit.isMerge && commit.filesChanged === 0 ? (
-                <span className="commit-merged">合并提交</span>
+                <span className="commit-merged">{t("合并提交")}</span>
               ) : (
                 <>
                   <i className="plus">+{formatNumber(commit.insertions)}</i>

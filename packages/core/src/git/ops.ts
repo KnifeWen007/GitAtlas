@@ -9,6 +9,7 @@ export type ChangeKind = 'modified' | 'added' | 'deleted' | 'renamed' | 'untrack
 
 export interface WorkingFile {
   path: string;
+  oldPath?: string;
   kind: ChangeKind;
   /** porcelain 的 XY 原始标记，便于前端显示 M/A/D */
   code: string;
@@ -68,7 +69,7 @@ function splitXY(xy: string): { index: string; worktree: string } {
  * `-uall` 必须加：默认会把未跟踪目录折叠成 `notes/` 一条，
  * 界面上点它看差异时根本读不出文件内容。
  */
-export async function getStatus(gitPath: string | undefined, repoPath: string): Promise<RepoStatus> {
+export async function getStatus(gitPath: string | undefined, repoPath: string, includeMetadata = true): Promise<RepoStatus> {
   const reader = makeReader(gitPath, repoPath);
   const out = await reader.run(['status', '--porcelain=v2', '--branch', '--untracked-files=all', '-z']);
   const entries = out.split('\0');
@@ -118,28 +119,33 @@ export async function getStatus(gitPath: string | undefined, repoPath: string): 
     }
 
     // u XY sub m1 m2 m3 mW h1 h2 h3 <path>
-    const unmerged = /^u (..) \S+ \S+ \S+ \S+ \S+ \S+ \S+ \S+ (.*)$/.exec(entry);
+    const unmerged = /^u (..) \S+ \S+ \S+ \S+ \S+ \S+ \S+ \S+ (.*)$/s.exec(entry);
     if (unmerged) {
       conflicts.push({ path: unmerged[2]!, kind: 'conflict', code: unmerged[1]! });
       continue;
     }
 
     // 1 XY sub mH mI mW hH hI <path>
-    const changed = /^1 (..) \S+ \S+ \S+ \S+ \S+ \S+ (.*)$/.exec(entry);
+    const changed = /^1 (..) \S+ \S+ \S+ \S+ \S+ \S+ (.*)$/s.exec(entry);
     if (changed) {
       collectChanged(staged, unstaged, changed[1]!, changed[2]!);
       continue;
     }
 
-    // 2 XY sub mH mI mW hH hI Xscore <path>  —— 下一项是原路径，跳过
-    const renamed = /^2 (..) \S+ \S+ \S+ \S+ \S+ \S+ \S+ (.*)$/.exec(entry);
+    // 2 XY sub mH mI mW hH hI Xscore <path> <NUL> <old-path>
+    const renamed = /^2 (..) \S+ \S+ \S+ \S+ \S+ \S+ \S+ (.*)$/s.exec(entry);
     if (renamed) {
-      collectChanged(staged, unstaged, renamed[1]!, renamed[2]!);
+      collectChanged(staged, unstaged, renamed[1]!, renamed[2]!, entries[i + 1]);
       i += 1;
     }
   }
 
-  const gitDir = (await reader.tryRun(['rev-parse', '--absolute-git-dir']))?.trim() ?? null;
+  const [gitDirOut, remoteOut, stashOut] = includeMetadata ? await Promise.all([
+    reader.tryRun(['rev-parse', '--absolute-git-dir']),
+    reader.tryRun(['remote', 'get-url', 'origin']),
+    reader.tryRun(['stash', 'list']),
+  ]) : [];
+  const gitDir = gitDirOut?.trim();
   let operation: RepoOperation = null;
   if (gitDir) {
     if (existsSync(join(gitDir, 'MERGE_HEAD'))) operation = 'merge';
@@ -149,8 +155,7 @@ export async function getStatus(gitPath: string | undefined, repoPath: string): 
     else if (existsSync(join(gitDir, 'REVERT_HEAD'))) operation = 'revert';
   }
 
-  const remoteUrl = (await reader.tryRun(['remote', 'get-url', 'origin']))?.trim() ?? null;
-  const stashOut = await reader.tryRun(['stash', 'list']);
+  const remoteUrl = remoteOut?.trim() ?? null;
   const stashCount = stashOut ? stashOut.split('\n').filter((line) => line.trim().length > 0).length : 0;
 
   return {
@@ -171,14 +176,11 @@ export async function getStatus(gitPath: string | undefined, repoPath: string): 
   };
 }
 
-function collectChanged(staged: WorkingFile[], unstaged: WorkingFile[], xy: string, path: string): void {
+function collectChanged(staged: WorkingFile[], unstaged: WorkingFile[], xy: string, path: string, oldPath?: string): void {
   const { index, worktree } = splitXY(xy);
-  if (index !== '.') {
-    staged.push({ path, kind: classify(index), code: index });
-  }
-  if (worktree !== '.') {
-    unstaged.push({ path, kind: classify(worktree), code: worktree });
-  }
+  const change = (code: string): WorkingFile => ({ path, kind: classify(code), code, ...(code === 'R' && oldPath ? { oldPath } : {}) });
+  if (index !== '.') staged.push(change(index));
+  if (worktree !== '.') unstaged.push(change(worktree));
 }
 
 /**
@@ -633,7 +635,7 @@ export async function stagePaths(
 ): Promise<OpResult> {
   const reader = makeReader(gitPath, repoPath);
   try {
-    await reader.run(['add', '--', ...paths]);
+    await reader.run(['--literal-pathspecs', 'add', '--', ...paths]);
     return { ok: true, message: `已暂存 ${paths.length} 个文件` };
   } catch (error) {
     return { ok: false, message: explainGitError(error), stderr: stderrOf(error) };
@@ -647,7 +649,13 @@ export async function unstagePaths(
 ): Promise<OpResult> {
   const reader = makeReader(gitPath, repoPath);
   try {
-    await reader.run(['restore', '--staged', '--', ...paths]);
+    if (!paths.length) return { ok: false, message: '请选择文件' };
+    const status = await getStatus(gitPath, repoPath, false);
+    const selected = new Set(paths);
+    for (const file of status.staged) {
+      if (file.oldPath && selected.has(file.path)) selected.add(file.oldPath);
+    }
+    await reader.run(['--literal-pathspecs', ...(status.headSha ? ['restore', '--staged'] : ['rm', '--cached', '-f']), '--', ...selected]);
     return { ok: true, message: `已取消暂存 ${paths.length} 个文件` };
   } catch (error) {
     return { ok: false, message: explainGitError(error), stderr: stderrOf(error) };
@@ -659,10 +667,21 @@ export async function discardPaths(
   gitPath: string | undefined,
   repoPath: string,
   paths: string[],
+  untracked = false,
 ): Promise<OpResult> {
   const reader = makeReader(gitPath, repoPath);
   try {
-    await reader.run(['restore', '--', ...paths]);
+    if (!paths.length) return { ok: false, message: '请选择文件' };
+    if (untracked) {
+      const status = await getStatus(gitPath, repoPath, false);
+      const untrackedPaths = new Set(status.untracked.map((file) => file.path));
+      if (paths.some((file) => file.endsWith('/') || !untrackedPaths.has(file))) {
+        return { ok: false, message: '文件状态已变化，请刷新后重试' };
+      }
+      await reader.run(['--literal-pathspecs', 'clean', '-f', '--', ...paths]);
+    } else {
+      await reader.run(['--literal-pathspecs', 'restore', '--', ...paths]);
+    }
     return { ok: true, message: `已丢弃 ${paths.length} 个文件的改动` };
   } catch (error) {
     return { ok: false, message: explainGitError(error), stderr: stderrOf(error) };

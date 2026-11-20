@@ -185,11 +185,11 @@ export async function getWorkingDiff(
   if (staged) args.push('--cached');
   args.push('--', filePath);
 
-  const output = await reader.run(args);
+  const output = await reader.run(['--literal-pathspecs', ...args]);
   if (output.trim().length === 0) {
     // 未暂存的空 diff 通常是未跟踪文件
     if (!staged) {
-      const tracked = await reader.tryRun(['ls-files', '--error-unmatch', '--', filePath]);
+      const tracked = await reader.tryRun(['--literal-pathspecs', 'ls-files', '--error-unmatch', '--', filePath]);
       if (tracked === null) return untrackedDiff(root, filePath);
     }
     const empty = emptyDiff(filePath, 'modified');
@@ -314,7 +314,7 @@ export async function getCommitFileDiff(
     : ['show', '--format=', '--no-color', '--unified=3', '--find-renames', sha, '--', filePath];
   if (oldPath && oldPath !== filePath) args.push(oldPath);
 
-  const output = await reader.run(args);
+  const output = await reader.run(['--literal-pathspecs', ...args]);
   if (output.trim().length === 0) {
     const empty = emptyDiff(filePath, 'modified');
     empty.note = isMerge

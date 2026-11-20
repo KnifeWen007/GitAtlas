@@ -14,7 +14,9 @@ contextBridge.exposeInMainWorld('gitatlas', {
   platform: process.platform,
   version: process.env.npm_package_version || '0.1.0',
   /** 返回选中的目录绝对路径；用户取消时返回 null */
-  pickDirectory: () => ipcRenderer.invoke('gitatlas:pick-directory'),
+  pickDirectory: (language) => ipcRenderer.invoke('gitatlas:pick-directory', language),
+  readLanguage: () => ipcRenderer.invoke('gitatlas:language-read'),
+  writeLanguage: (language) => ipcRenderer.invoke('gitatlas:language-write', language),
   /** 用系统默认程序打开文件，返回 { ok, error? } */
   openPath: (filePath) => ipcRenderer.invoke('gitatlas:open-path', filePath),
   /** 在文件管理器里定位文件 */

@@ -102,6 +102,7 @@ export interface GitActionBody {
   target?: string;
   path?: string;
   paths?: string[];
+  untracked?: boolean;
   side?: 'ours' | 'theirs';
   force?: boolean;
   message?: string;
@@ -302,7 +303,7 @@ export async function startServer(options: ServerOptions): Promise<ServerHandle>
       case 'unstage':
         return unstagePaths(gitPath, repoPath, body.paths ?? []);
       case 'discard':
-        return discardPaths(gitPath, repoPath, body.paths ?? []);
+        return discardPaths(gitPath, repoPath, body.paths ?? [], body.untracked === true);
       case 'commit':
         return commitPaths(gitPath, repoPath, need(body.message, '提交说明'), body.all !== false);
       default:
@@ -460,7 +461,7 @@ export async function startServer(options: ServerOptions): Promise<ServerHandle>
       if (!Number.isFinite(id)) return reply.code(400).send({ error: 'id 无效' });
       const repo = getRepo(store, id);
       if (!repo) return reply.code(404).send({ error: '仓库不存在' });
-      const filePath = request.query.path?.trim();
+      const filePath = request.query.path;
       if (!filePath) return reply.code(400).send({ error: '请指定文件路径' });
       try {
         const reader = new GitReader({ cwd: repo.path, ...(gitPath ? { gitPath } : {}) });
@@ -498,7 +499,7 @@ export async function startServer(options: ServerOptions): Promise<ServerHandle>
       if (!Number.isFinite(id)) return reply.code(400).send({ error: 'id 无效' });
       const repo = getRepo(store, id);
       if (!repo) return reply.code(404).send({ error: '仓库不存在' });
-      const filePath = request.query.path?.trim();
+      const filePath = request.query.path;
       if (!filePath) return reply.code(400).send({ error: '请指定文件路径' });
       try {
         const file = await readWorkingFile(repo.path, filePath);
@@ -510,26 +511,30 @@ export async function startServer(options: ServerOptions): Promise<ServerHandle>
   );
 
   /** 保存编辑器里的内容；只写工作区，不碰 index */
-  app.put<{ Params: { id: string }; Body: { path?: string; content?: string } }>(
+  app.put<{ Params: { id: string }; Body: { path?: string; content?: string; revision?: string } }>(
     '/api/repos/:id/file',
     async (request, reply) => {
       const id = Number(request.params.id);
       if (!Number.isFinite(id)) return reply.code(400).send({ error: 'id 无效' });
       const repo = getRepo(store, id);
       if (!repo) return reply.code(404).send({ error: '仓库不存在' });
-      const filePath = request.body?.path?.trim();
+      const filePath = request.body?.path;
       if (!filePath) return reply.code(400).send({ error: '请指定文件路径' });
       if (typeof request.body?.content !== 'string') return reply.code(400).send({ error: '缺少文件内容' });
+      if (busyRepos.has(id)) return reply.code(409).send({ error: '仓库正在执行另一个操作' });
+      busyRepos.add(id);
       try {
-        const saved = await writeWorkingFile(repo.path, filePath, request.body.content);
+        const saved = await writeWorkingFile(repo.path, filePath, request.body.content, request.body.revision);
         return { ok: true, ...saved, conflictMarkers: countConflictMarkers(request.body.content) };
       } catch (error) {
         return reply.code(400).send({ error: explainGitFailure(error) });
+      } finally {
+        busyRepos.delete(id);
       }
     },
   );
   /** 工作目录树：已跟踪 + 未跟踪，勾上 ignored 连被忽略的也列出来 */
-  app.get<{ Params: { id: string }; Querystring: { ignored?: string; size?: string } }>(
+  app.get<{ Params: { id: string }; Querystring: { ignored?: string; size?: string; q?: string; offset?: string; limit?: string } }>(
     '/api/repos/:id/tree',
     async (request, reply) => {
       const id = Number(request.params.id);
@@ -540,6 +545,9 @@ export async function startServer(options: ServerOptions): Promise<ServerHandle>
         return await listWorkingTree(gitPath, repo.path, {
           includeIgnored: request.query.ignored === '1',
           withSize: request.query.size !== '0',
+          query: request.query.q ?? '',
+          offset: Number(request.query.offset ?? 0),
+          limit: Number(request.query.limit ?? 20_000),
         });
       } catch (error) {
         return reply.code(400).send({ error: explainGitFailure(error) });
@@ -548,18 +556,19 @@ export async function startServer(options: ServerOptions): Promise<ServerHandle>
   );
 
   /** 单文件详情：大小、行数、跟踪/忽略状态、改过它的人和次数 */
-  app.get<{ Params: { id: string }; Querystring: { path?: string; limit?: string } }>(
+  app.get<{ Params: { id: string }; Querystring: { path?: string; limit?: string; directory?: string } }>(
     '/api/repos/:id/file-detail',
     async (request, reply) => {
       const id = Number(request.params.id);
       if (!Number.isFinite(id)) return reply.code(400).send({ error: 'id 无效' });
       const repo = getRepo(store, id);
       if (!repo) return reply.code(404).send({ error: '仓库不存在' });
-      const filePath = request.query.path?.trim();
+      const filePath = request.query.path;
       if (!filePath) return reply.code(400).send({ error: '请指定文件路径' });
       const limit = Number(request.query.limit);
       try {
         return await getFileDetail(gitPath, repo.path, filePath, {
+          directory: request.query.directory === '1',
           ...(Number.isFinite(limit) && limit > 0 ? { historyLimit: Math.min(limit, 100) } : {}),
         });
       } catch (error) {
@@ -569,20 +578,20 @@ export async function startServer(options: ServerOptions): Promise<ServerHandle>
   );
 
   /** .gitignore 全文与逐行规则 */
-  app.get<{ Params: { id: string } }>('/api/repos/:id/ignore', async (request, reply) => {
+  app.get<{ Params: { id: string }; Querystring: { directory?: string } }>('/api/repos/:id/ignore', async (request, reply) => {
     const id = Number(request.params.id);
     if (!Number.isFinite(id)) return reply.code(400).send({ error: 'id 无效' });
     const repo = getRepo(store, id);
     if (!repo) return reply.code(404).send({ error: '仓库不存在' });
     try {
-      return await readIgnoreFile(repo.path);
+      return await readIgnoreFile(repo.path, request.query.directory);
     } catch (error) {
       return reply.code(400).send({ error: explainGitFailure(error) });
     }
   });
 
   /** 整份覆盖写回 .gitignore */
-  app.put<{ Params: { id: string }; Body: { text?: string } }>(
+  app.put<{ Params: { id: string }; Body: { text?: string; directory?: string } }>(
     '/api/repos/:id/ignore',
     async (request, reply) => {
       const id = Number(request.params.id);
@@ -591,7 +600,7 @@ export async function startServer(options: ServerOptions): Promise<ServerHandle>
       if (!repo) return reply.code(404).send({ error: '仓库不存在' });
       if (typeof request.body?.text !== 'string') return reply.code(400).send({ error: '缺少文件内容' });
       try {
-        return await writeIgnoreFile(repo.path, request.body.text);
+        return await writeIgnoreFile(repo.path, request.body.text, request.body.directory);
       } catch (error) {
         return reply.code(400).send({ error: explainGitFailure(error) });
       }
@@ -599,17 +608,17 @@ export async function startServer(options: ServerOptions): Promise<ServerHandle>
   );
 
   /** 追加一条规则；已经存在的不会重复写 */
-  app.post<{ Params: { id: string }; Body: { pattern?: string } }>(
+  app.post<{ Params: { id: string }; Body: { pattern?: string; directory?: string } }>(
     '/api/repos/:id/ignore',
     async (request, reply) => {
       const id = Number(request.params.id);
       if (!Number.isFinite(id)) return reply.code(400).send({ error: 'id 无效' });
       const repo = getRepo(store, id);
       if (!repo) return reply.code(404).send({ error: '仓库不存在' });
-      const pattern = request.body?.pattern?.trim();
+      const pattern = request.body?.pattern;
       if (!pattern) return reply.code(400).send({ error: '请给一条忽略规则' });
       try {
-        return await addIgnoreRule(repo.path, pattern);
+        return await addIgnoreRule(repo.path, pattern, request.body.directory);
       } catch (error) {
         return reply.code(400).send({ error: explainGitFailure(error) });
       }
@@ -617,7 +626,7 @@ export async function startServer(options: ServerOptions): Promise<ServerHandle>
   );
 
   /** 按行号删掉一条规则 */
-  app.delete<{ Params: { id: string }; Querystring: { line?: string } }>(
+  app.delete<{ Params: { id: string }; Querystring: { line?: string; directory?: string } }>(
     '/api/repos/:id/ignore',
     async (request, reply) => {
       const id = Number(request.params.id);
@@ -627,7 +636,7 @@ export async function startServer(options: ServerOptions): Promise<ServerHandle>
       const line = Number(request.query.line);
       if (!Number.isInteger(line)) return reply.code(400).send({ error: '行号无效' });
       try {
-        return await removeIgnoreRule(repo.path, line);
+        return await removeIgnoreRule(repo.path, line, request.query.directory);
       } catch (error) {
         return reply.code(400).send({ error: explainGitFailure(error) });
       }
@@ -642,7 +651,7 @@ export async function startServer(options: ServerOptions): Promise<ServerHandle>
       if (!Number.isFinite(id)) return reply.code(400).send({ error: 'id 无效' });
       const repo = getRepo(store, id);
       if (!repo) return reply.code(404).send({ error: '仓库不存在' });
-      const filePath = request.query.path?.trim();
+      const filePath = request.query.path;
       if (!filePath) return reply.code(400).send({ error: '请指定文件路径' });
       try {
         return { match: await checkIgnore(gitPath, repo.path, filePath) };
@@ -662,7 +671,7 @@ export async function startServer(options: ServerOptions): Promise<ServerHandle>
       if (!repo) return reply.code(404).send({ error: '仓库不存在' });
       const sha = request.params.sha.trim();
       if (!/^[0-9a-f]{4,40}$/i.test(sha)) return reply.code(400).send({ error: '提交号格式不对' });
-      const filePath = request.query.path?.trim();
+      const filePath = request.query.path;
       if (!filePath) return reply.code(400).send({ error: '请指定文件路径' });
       try {
         const reader = new GitReader({ cwd: repo.path, ...(gitPath ? { gitPath } : {}) });

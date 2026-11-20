@@ -1,3 +1,4 @@
+import { useTranslation } from '../i18n.ts';
 import { useEffect, useRef, useState } from 'react';
 import {
   ACCENT_PRESETS,
@@ -24,6 +25,7 @@ const MODES: Array<{ value: ThemeMode; label: string }> = [
  * 主色既可以从预设里挑，也可以直接用取色器选一个，配色只存在本机。
  */
 export function ThemePanel({ settings, resolved, onChange }: ThemePanelProps) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const dockRef = useRef<HTMLDivElement>(null);
   const currentAccent = settings.accent ?? (resolved === 'dark' ? '#7aa2f7' : '#3b6fe0');
@@ -47,16 +49,16 @@ export function ThemePanel({ settings, resolved, onChange }: ThemePanelProps) {
   return (
     <div className="theme-dock" ref={dockRef}>
       {open ? (
-        <div className="theme-pop" role="dialog" aria-label="配色">
+        <div className="theme-pop" role="dialog" aria-label={t("配色")}>
           <div className="theme-pop-head">
-            <span>配色</span>
-            <button className="theme-close" type="button" onClick={() => setOpen(false)} aria-label="关闭">
+            <span>{t("配色")}</span>
+            <button className="theme-close" type="button" onClick={() => setOpen(false)} aria-label={t("关闭")}>
               ×
             </button>
           </div>
 
           <div className="theme-field">
-            <span className="theme-field-label">外观</span>
+            <span className="theme-field-label">{t("外观")}</span>
             <div className="theme-seg">
               {MODES.map((mode) => (
                 <button
@@ -65,14 +67,14 @@ export function ThemePanel({ settings, resolved, onChange }: ThemePanelProps) {
                   className={settings.mode === mode.value ? 'is-on' : ''}
                   onClick={() => onChange({ ...settings, mode: mode.value })}
                 >
-                  {mode.label}
+                  {t(mode.label)}
                 </button>
               ))}
             </div>
           </div>
 
           <div className="theme-field">
-            <span className="theme-field-label">主色</span>
+            <span className="theme-field-label">{t("主色")}</span>
             <div className="theme-swatches">
               {ACCENT_PRESETS.map((preset) => (
                 <button
@@ -80,12 +82,12 @@ export function ThemePanel({ settings, resolved, onChange }: ThemePanelProps) {
                   type="button"
                   className={`theme-swatch ${settings.accent === preset.value ? 'is-on' : ''}`}
                   style={{ background: preset.value }}
-                  title={preset.name}
-                  aria-label={`主色 ${preset.name}`}
+                  title={t(preset.name)}
+                  aria-label={t("主色 {0}", t(preset.name))}
                   onClick={() => onChange({ ...settings, accent: preset.value })}
                 />
               ))}
-              <label className="theme-swatch theme-swatch-custom" title="自己挑一个">
+              <label className="theme-swatch theme-swatch-custom" title={t("自己挑一个")}>
                 <input
                   type="color"
                   value={currentAccent}
@@ -100,18 +102,18 @@ export function ThemePanel({ settings, resolved, onChange }: ThemePanelProps) {
                 className="theme-reset"
                 onClick={() => onChange({ ...settings, accent: null })}
               >
-                默认
+                {t("默认")}
               </button>
             </div>
           </div>
 
-          <p className="theme-hint">配色只存在这台机器上，不会写进仓库。</p>
+          <p className="theme-hint">{t("配色只存在这台机器上，不会写进仓库。")}</p>
         </div>
       ) : null}
 
       <button className="theme-trigger" type="button" onClick={() => setOpen((value) => !value)}>
         <span className="theme-trigger-dot" />
-        配色 · {resolved === 'dark' ? '深色' : '浅色'}
+        {t("配色 ·")} {resolved === 'dark' ? t("深色") : t("浅色")}
       </button>
     </div>
   );

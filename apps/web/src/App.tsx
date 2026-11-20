@@ -1,3 +1,4 @@
+import { getLanguage, LanguageContext, saveLanguage, translateMessage, useTranslation, type Language } from './i18n.ts';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   api,
@@ -58,6 +59,19 @@ const HEAT_RANGES = [
 ];
 
 export function App({ initialTheme }: { initialTheme?: ThemeSettings } = {}) {
+  const [language, setLanguage] = useState(getLanguage);
+  return (
+    <LanguageContext.Provider value={language}>
+      <AppContent initialTheme={initialTheme} onLanguageChange={(value) => {
+        saveLanguage(value);
+        setLanguage(value);
+      }} />
+    </LanguageContext.Provider>
+  );
+}
+
+function AppContent({ initialTheme, onLanguageChange }: { initialTheme: ThemeSettings | undefined; onLanguageChange: (value: Language) => void }) {
+  const { t, language } = useTranslation();
   const [health, setHealth] = useState<HealthResponse | null>(null);
   // 配色：跟系统走的时候系统换主题也要跟着换
   const [theme, setTheme] = useState<ThemeSettings>(() => initialTheme ?? loadTheme());
@@ -249,7 +263,7 @@ export function App({ initialTheme }: { initialTheme?: ThemeSettings } = {}) {
 
         if (current.status === 'failed') {
           setTaskId(null);
-          setAddError(current.error ?? '索引失败');
+          setAddError(current.error ?? t("索引失败"));
           return;
         }
 
@@ -267,7 +281,7 @@ export function App({ initialTheme }: { initialTheme?: ThemeSettings } = {}) {
           else setSelectedId((prev) => prev ?? list[0]?.id ?? null);
         } else {
           setReloadKey((key) => key + 1);
-          pushToast('索引完成，图谱已经是最新的', 'ok');
+          pushToast(t("索引完成，图谱已经是最新的"), 'ok');
         }
         setAfterTask(null);
       } catch (error) {
@@ -349,9 +363,9 @@ export function App({ initialTheme }: { initialTheme?: ThemeSettings } = {}) {
     if (selectedId === null || !detail) return;
     const removedName = detail.summary.name;
     setConfirmRequest({
-      title: '从列表里移除这个仓库？',
-      body: `只会把「${removedName}」从 GitAtlas 的仓库列表里去掉，磁盘上的仓库和提交一条都不会动。想加回来时再选一次目录就行。`,
-      confirmLabel: '移除',
+      title: t("从列表里移除这个仓库？"),
+      body: t("只会把「{0}」从 GitAtlas 的仓库列表里去掉，磁盘上的仓库和提交一条都不会动。想加回来时再选一次目录就行。", removedName),
+      confirmLabel: t("移除"),
       danger: true,
       onConfirm: () => {
         void (async () => {
@@ -359,7 +373,7 @@ export function App({ initialTheme }: { initialTheme?: ThemeSettings } = {}) {
             await api.remove(selectedId);
             const list = await refreshRepos();
             setSelectedId(list[0]?.id ?? null);
-            pushToast(`已移除「${removedName}」`, 'ok');
+            pushToast(t("已移除「{0}」", removedName), 'ok');
           } catch (error) {
             pushToast(toMessage(error), 'err');
           }
@@ -372,8 +386,8 @@ export function App({ initialTheme }: { initialTheme?: ThemeSettings } = {}) {
 
   // 标题栏跟着当前仓库走，任务栏上也能分清窗口
   useEffect(() => {
-    document.title = detail ? `${detail.summary.name} · GitAtlas` : 'GitAtlas · Git 协作图谱';
-  }, [detail]);
+    document.title = detail ? `${detail.summary.name} · GitAtlas` : t("GitAtlas · Git 协作图谱");
+  }, [detail, language]);
 
   return (
     <div className="app">
@@ -382,17 +396,17 @@ export function App({ initialTheme }: { initialTheme?: ThemeSettings } = {}) {
           <img className="brand-mark" src="/logo.png" alt="" width={30} height={30} draggable={false} />
           <div className="brand-text">
             <span className="brand-name">GitAtlas</span>
-            <span className="brand-sub">协作图谱</span>
+            <span className="brand-sub">{t("协作图谱")}</span>
           </div>
         </div>
 
         <button className="btn btn-primary" onClick={() => setDialogOpen(true)} disabled={busy}>
-          + 添加仓库
+          {t("+ 添加仓库")}
         </button>
 
         <div className="sidebar-section">
           <div className="sidebar-label">
-            <span>仓库</span>
+            <span>{t("仓库")}</span>
             <span>{repos.length}</span>
           </div>
           {repos.map((repo) => (
@@ -404,20 +418,31 @@ export function App({ initialTheme }: { initialTheme?: ThemeSettings } = {}) {
             >
               <span className="repo-item-name">{repo.name}</span>
               <span className="repo-item-meta">
-                {formatNumber(repo.commitCount)} 提交 · {formatRelative(repo.lastIndexedAt)}
+                {formatNumber(repo.commitCount)} {t("提交 ·")} {formatRelative(repo.lastIndexedAt)}
               </span>
             </button>
           ))}
-          {repos.length === 0 ? <div className="sidebar-empty">还没有仓库</div> : null}
+          {repos.length === 0 ? <div className="sidebar-empty">{t("还没有仓库")}</div> : null}
         </div>
 
-        <div className="sidebar-footer">
+        <div className="sidebar-settings">
+          <select
+            value={language}
+            aria-label={t('界面语言')}
+            onChange={(event) => onLanguageChange(event.target.value === 'en' ? 'en' : 'zh-CN')}
+            className="language-picker"
+          >
+            <option value="zh-CN" lang="zh-CN">简体中文</option>
+            <option value="en" lang="en">English</option>
+          </select>
           <ThemePanel settings={theme} resolved={resolvedTheme} onChange={setTheme} />
+        </div>
+        <div className="sidebar-footer">
           <div>
             <span className={`dot ${health?.git.available ? 'ok' : 'bad'}`} />
-            Git {health?.git.version ?? '未检测到'}
+            Git {health?.git.version ?? t("未检测到")}
           </div>
-          <div className="mono">{health?.url ? health.url.replace(/^https?:\/\//, '') : 'API 未连接'}</div>
+          <div className="mono">{health?.url ? health.url.replace(/^https?:\/\//, '') : t("API 未连接")}</div>
         </div>
       </aside>
 
@@ -426,9 +451,9 @@ export function App({ initialTheme }: { initialTheme?: ThemeSettings } = {}) {
 
         {globalError ? (
           <div className="error-banner" role="alert">
-            <span>{globalError}</span>
+            <span>{translateMessage(globalError)}</span>
             <button className="btn btn-xs btn-ghost" onClick={() => setGlobalError(null)}>
-              知道了
+              {t("知道了")}
             </button>
           </div>
         ) : null}
@@ -438,13 +463,13 @@ export function App({ initialTheme }: { initialTheme?: ThemeSettings } = {}) {
             <div className="empty-badge" aria-hidden="true">
               <img src="/logo.png" alt="" width={46} height={46} draggable={false} />
             </div>
-            <div className="empty-title">把仓库变成一张能看懂的图</div>
+            <div className="empty-title">{t("把仓库变成一张能看懂的图")}</div>
             <div className="empty-desc">
-              添加一个本地 Git 仓库，GitAtlas 会解析提交历史、聚合活动节奏，并指出分支与代码里的问题。全程不用敲命令。
+              {t("添加一个本地 Git 仓库，GitAtlas 会解析提交历史、聚合活动节奏，并指出分支与代码里的问题。全程不用敲命令。")}
             </div>
             <div className="empty-actions">
               <button className="btn btn-primary" onClick={() => setDialogOpen(true)}>
-                添加本地仓库
+                {t("添加本地仓库")}
               </button>
             </div>
           </div>
@@ -493,10 +518,12 @@ export function App({ initialTheme }: { initialTheme?: ThemeSettings } = {}) {
       />
 
       <InspectorDrawer
+        key={inspect ? `${selectedId}:${inspect.kind}:${inspect.kind === 'commit' ? `${inspect.sha}:${inspect.path ?? ''}` : inspect.path}` : 'closed'}
         repoId={selectedId ?? 0}
         repoPath={detail?.summary.path ?? null}
         target={inspect}
         onClose={() => setInspect(null)}
+        onConfirm={setConfirmRequest}
         onGit={(body) => void handleGit(body)}
         onRefreshStatus={() => setReloadKey((key) => key + 1)}
       />
@@ -555,6 +582,7 @@ function RepoView({
   onFocus,
   onToast,
 }: RepoViewProps) {
+  const { t, language } = useTranslation();
   const { summary, timeline, refs, commits, graph } = detail;
   const [heatMonths, setHeatMonths] = useState(12);
   const totalChanges = summary.insertions + summary.deletions;
@@ -582,9 +610,9 @@ function RepoView({
   const copyPath = async () => {
     try {
       await navigator.clipboard.writeText(summary.path);
-      onToast('仓库路径已复制', 'ok');
+      onToast(t("仓库路径已复制"), 'ok');
     } catch {
-      onToast('复制失败，可以手动选中路径', 'err');
+      onToast(t("复制失败，可以手动选中路径"), 'err');
     }
   };
 
@@ -596,76 +624,76 @@ function RepoView({
             {summary.name}
             {summary.defaultBranch ? <span className="badge badge-accent">{summary.defaultBranch}</span> : null}
             {summary.staleBranches > 0 ? (
-              <span className="badge badge-warn">{summary.staleBranches} 条僵化分支</span>
+              <span className="badge badge-warn">{summary.staleBranches} {t("条僵化分支")}</span>
             ) : null}
             {stale ? (
-              <span className="badge badge-warn" title="本地 HEAD 比上次索引更新">
-                有新提交未索引
+              <span className="badge badge-warn" title={t("本地 HEAD 比上次索引更新")}>
+                {t("有新提交未索引")}
               </span>
             ) : null}
           </h1>
           <div className="repo-path">
-            <button className="repo-path-text mono" onClick={() => void copyPath()} title="点击复制路径">
+            <button className="repo-path-text mono" onClick={() => void copyPath()} title={t("点击复制路径")}>
               {summary.path}
             </button>
             {originWeb ? (
-              <a className="repo-link" href={originWeb} target="_blank" rel="noreferrer" title={`在浏览器打开 ${originWeb}`}>
+              <a className="repo-link" href={originWeb} target="_blank" rel="noreferrer" title={t("在浏览器打开 {0}", originWeb)}>
                 {originWeb.replace(/^https?:\/\//, '').replace(/\/$/, '')}
               </a>
             ) : (
-              <span className="repo-link is-empty">未配置远端 · 在操作台里填一个地址就能拉取和推送</span>
+              <span className="repo-link is-empty">{t("未配置远端 · 在操作台里填一个地址就能拉取和推送")}</span>
             )}
           </div>
         </div>
         <div className="header-actions">
-          <span className="badge" title={lastIndexed ? new Date(lastIndexed).toLocaleString('zh-CN') : ''}>
-            索引于 {formatRelative(lastIndexed)}
+          <span className="badge" title={lastIndexed ? new Date(lastIndexed).toLocaleString(language) : ''}>
+            {t("索引于")} {formatRelative(lastIndexed)}
           </span>
           <button className="btn" onClick={onReindex} disabled={busy}>
-            {busy ? <span className="spinner" /> : '重新索引'}
+            {busy ? <span className="spinner" /> : t("重新索引")}
           </button>
           <button className="btn btn-ghost" onClick={onRemove} disabled={busy}>
-            移除
+            {t("移除")}
           </button>
         </div>
       </header>
 
       <div className={`stat-grid${refreshing ? ' is-refreshing' : ''}`}>
         <StatCard
-          label="提交总数"
+          label={t("提交总数")}
           value={formatNumber(summary.commitCount)}
-          sub={`${formatNumber(summary.mergeCount)} 次合并`}
+          sub={t("{0} 次合并", formatNumber(summary.mergeCount))}
           spark={spark}
         />
         <StatCard
-          label="贡献者"
+          label={t("贡献者")}
           value={formatNumber(summary.authorCount)}
-          sub={`近 30 天 ${summary.activeAuthors30d} 人`}
+          sub={t("近 30 天 {0} 人", summary.activeAuthors30d)}
           tone="violet"
         />
         <StatCard
-          label="分支 / 标签"
+          label={t("分支 / 标签")}
           value={`${summary.branchCount} / ${summary.tagCount}`}
-          sub="含远端引用"
+          sub={t("含远端引用")}
           tone="green"
         />
         <StatCard
-          label="代码变动"
+          label={t("代码变动")}
           value={`+${formatNumber(summary.insertions)}`}
-          sub={`−${formatNumber(summary.deletions)} 行删除`}
+          sub={t("−{0} 行删除", formatNumber(summary.deletions))}
           tone="amber"
           ratio={{ up: summary.insertions, down: summary.deletions }}
         />
         <StatCard
-          label="历史跨度"
+          label={t("历史跨度")}
           value={yearSpan}
-          sub={`最近提交 ${formatRelative(summary.lastCommitAt)}`}
+          sub={t("最近提交 {0}", formatRelative(summary.lastCommitAt))}
           tone="red"
         />
         <StatCard
-          label="窗口内活跃"
-          value={`${timeline.totals.activeDays} 天`}
-          sub={`${formatNumber(timeline.totals.commits)} 提交 / ${formatNumber(totalChanges)} 行`}
+          label={t("窗口内活跃")}
+          value={t("{0} 天", timeline.totals.activeDays)}
+          sub={t("{0} 提交 / {1} 行", formatNumber(timeline.totals.commits), formatNumber(totalChanges))}
         />
       </div>
 
@@ -688,26 +716,31 @@ function RepoView({
         refreshKey={workspaceRefreshKey}
         onOpenDiff={(path, staged) => onInspect({ kind: 'working', path, staged })}
         onEditConflict={(path) => onInspect({ kind: 'conflict', path })}
+        onOpenFile={(path) => onInspect({ kind: 'file', path })}
+        onOpenCommit={(commit, path) => onInspect({ kind: 'commit', ...commit, path })}
+        onGit={onGit}
+        onConfirm={onConfirm}
+        busy={opBusy || busy}
         onRefresh={onRefreshStatus}
       />
 
       <div className="card">
         <div className="card-head">
           <div className="card-title">
-            <span className="card-name">提交图谱</span>
-            <span className="hint">每条泳道是一条提交链，弧线是合并；点任意一行看这次改了哪些文件</span>
+            <span className="card-name">{t("提交图谱")}</span>
+            <span className="hint">{t("每条泳道是一条提交链，弧线是合并；点任意一行看这次改了哪些文件")}</span>
           </div>
           <div className="graph-tools">
             <label className="graph-picker">
-              <span>看哪条分支</span>
+              <span>{t("看哪条分支")}</span>
               <SelectMenu
                 value={focusRef ?? ''}
                 align="right"
-                ariaLabel="看哪条分支"
-                placeholder="全部分支（总览）"
+                ariaLabel={t("看哪条分支")}
+                placeholder={t("全部分支（总览）")}
                 onChange={(next) => onFocus(next === '' ? null : next)}
                 options={[
-                  { value: '', label: '全部分支（总览）' },
+                  { value: '', label: t("全部分支（总览）") },
                   ...refs
                     .filter((ref) => ref.kind === 'branch' || ref.kind === 'remote')
                     .slice()
@@ -715,17 +748,17 @@ function RepoView({
                     .map((ref) => ({
                       value: ref.shortName,
                       label: ref.shortName,
-                      ...(ref.isHead ? { hint: '当前' } : ref.kind === 'remote' ? { hint: '远端' } : {}),
+                      ...(ref.isHead ? { hint: t("当前") } : ref.kind === 'remote' ? { hint: t("远端") } : {}),
                     })),
                 ]}
               />
             </label>
             <div className="graph-key">
               <span className="graph-key-item">
-                <i className="dot-node" /> 提交
+                <i className="dot-node" /> {t("提交")}
               </span>
               <span className="graph-key-item">
-                <i className="dot-merge" /> 合并
+                <i className="dot-merge" /> {t("合并")}
               </span>
             </div>
           </div>
@@ -746,13 +779,13 @@ function RepoView({
       <div className="card">
         <div className="card-head">
           <div className="card-title">
-            <span className="card-name">提交活动</span>
+            <span className="card-name">{t("提交活动")}</span>
             <span className="hint">
               {timeline.from} → {timeline.to}
             </span>
           </div>
           <div className="heat-tools">
-            <div className="seg" role="group" aria-label="热力图区间">
+            <div className="seg" role="group" aria-label={t("热力图区间")}>
               {HEAT_RANGES.map((range) => (
                 <button
                   key={range.months}
@@ -761,7 +794,7 @@ function RepoView({
                   aria-pressed={heatMonths === range.months}
                   onClick={() => setHeatMonths(range.months)}
                 >
-                  {range.label}
+                  {t(range.label)}
                 </button>
               ))}
             </div>
@@ -777,9 +810,9 @@ function RepoView({
         <div className="card">
           <div className="card-head">
             <div className="card-title">
-              <span className="card-name">分支与标签</span>
+              <span className="card-name">{t("分支与标签")}</span>
               <span className="hint">
-                {branchCount} 分支 · {tagCount} 标签
+                {branchCount} {t("分支 ·")} {tagCount} {t("标签")}
               </span>
             </div>
           </div>
@@ -791,8 +824,8 @@ function RepoView({
         <div className="card">
           <div className="card-head">
             <div className="card-title">
-              <span className="card-name">最近提交</span>
-              <span className="hint">按作者时间倒序，点一行看改动</span>
+              <span className="card-name">{t("最近提交")}</span>
+              <span className="hint">{t("按作者时间倒序，点一行看改动")}</span>
             </div>
           </div>
           <div className="card-body">

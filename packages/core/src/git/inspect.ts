@@ -16,6 +16,7 @@ export interface FileCommit {
   authoredAt: string;
   insertions: number;
   deletions: number;
+  path: string | null;
 }
 
 export interface FileDetail {
@@ -52,7 +53,10 @@ export function parseFileHistory(out: string): FileCommit[] {
   const commits: FileCommit[] = [];
   let current: FileCommit | null = null;
 
-  for (const line of out.split('\n')) {
+  const nulDelimited = out.includes('\0');
+  const records = out.split(nulDelimited ? '\0' : '\n');
+  for (let index = 0; index < records.length; index += 1) {
+    const line = records[index]!.replace(/^\n/, '');
     if (line.startsWith('\x01')) {
       const fields = line.slice(1).split('\x1f');
       const [sha = '', shortSha = '', authorName = '', authoredAt = ''] = fields;
@@ -65,6 +69,7 @@ export function parseFileHistory(out: string): FileCommit[] {
         subject,
         insertions: 0,
         deletions: 0,
+        path: null,
       };
       commits.push(current);
       continue;
@@ -75,6 +80,13 @@ export function parseFileHistory(out: string): FileCommit[] {
     // numstat：`12\t3\tpath`，二进制是 `-\t-\tpath`
     const parts = line.split('\t');
     if (parts.length < 3) continue;
+    let changedPath = parts.slice(2).join('\t');
+    if (nulDelimited && !changedPath) {
+      // Renames have two additional NUL-delimited fields, old path then new path.
+      changedPath = records[index + 2] ?? '';
+      index += 2;
+    }
+    current.path ??= changedPath || null;
     const added = Number.parseInt(parts[0] ?? '', 10);
     const removed = Number.parseInt(parts[1] ?? '', 10);
     if (Number.isFinite(added)) current.insertions += added;
@@ -105,26 +117,27 @@ export async function getFileDetail(
   gitPath: string | undefined,
   repoPath: string,
   filePath: string,
-  options: { historyLimit?: number } = {},
+  options: { historyLimit?: number; directory?: boolean } = {},
 ): Promise<FileDetail> {
   const reader = new GitReader({ cwd: repoPath, ...(gitPath ? { gitPath } : {}) });
   const safePath = process.platform === 'win32' ? filePath.replace(/\\/g, '/') : filePath;
   const absolute = await resolveInsideRepo(repoPath, safePath);
   const inputStat = await fs.lstat(absolute).catch((error) => {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
+    if (['ENOENT', 'ENOTDIR'].includes((error as NodeJS.ErrnoException).code ?? '')) return null;
     throw error;
   });
-  if (inputStat?.isDirectory()) throw new Error('请选择单个文件，而不是目录');
   if (inputStat?.isSymbolicLink()) throw new Error('为保护仓库边界，不支持查看符号链接目标');
+  const isDirectory = inputStat?.isDirectory() || options.directory === true;
+  const pathspec = isDirectory ? `${safePath}/` : safePath;
 
   const base: FileDetail = {
     path: safePath,
     name: path.basename(safePath),
     dir: path.dirname(safePath) === '.' ? '' : path.dirname(safePath),
-    exists: false,
-    isDirectory: false,
+    exists: isDirectory && (inputStat?.isDirectory() ?? false),
+    isDirectory,
     size: null,
-    mtime: null,
+    mtime: isDirectory && inputStat?.isDirectory() ? inputStat.mtime.toISOString() : null,
     binary: false,
     lines: null,
     tracked: false,
@@ -138,10 +151,9 @@ export async function getFileDetail(
     note: null,
   };
 
-  let info: Awaited<ReturnType<typeof fs.stat>> | null = null;
-  try {
+  if (!isDirectory && inputStat?.isFile()) {
     const opened = await openRegularFileInsideRepo(repoPath, safePath);
-    info = opened.info;
+    const { info } = opened;
     base.exists = true;
     base.mtime = info.mtime.toISOString();
     base.size = info.size;
@@ -155,37 +167,26 @@ export async function getFileDetail(
     } finally {
       await opened.handle.close();
     }
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-      base.note = '工作区里没有这个文件（可能只存在于提交历史里）';
-    } else {
-      throw error;
-    }
+  } else if (!isDirectory) {
+    base.note = '工作区里没有这个文件（可能只存在于提交历史里）';
   }
 
-  const tracked = await reader.tryRun(['--literal-pathspecs', 'ls-files', '--error-unmatch', '--', safePath]);
-  base.tracked = tracked !== null && tracked.split('\n').some((line) => line === safePath);
+  const tracked = await reader.tryRun(['--literal-pathspecs', 'ls-files', '-z', '--cached', '--', pathspec]);
+  base.tracked = Boolean(tracked?.split('\0').some((item) => isDirectory ? item.startsWith(pathspec) : item === safePath));
 
-  const match = await checkIgnore(gitPath, repoPath, safePath).catch(() => null);
+  const match = await checkIgnore(gitPath, repoPath, safePath, isDirectory).catch(() => null);
   base.ignore = match;
-  base.ignored = match !== null && !base.tracked;
+  base.ignored = match !== null && !match.pattern.startsWith('!') && !base.tracked;
 
   const requestedLimit = options.historyLimit ?? HISTORY_LIMIT;
   const limit = Number.isSafeInteger(requestedLimit) ? Math.max(1, Math.min(requestedLimit, 100)) : HISTORY_LIMIT;
-  const history = await reader
-    .tryRun([
-      '--literal-pathspecs',
-      'log',
-      `-n${limit}`,
-      '--follow',
-      '--no-color',
-      '--numstat',
-      '--format=%x01%H%x1f%h%x1f%an%x1f%aI%x1f%s',
-      '--',
-      safePath,
-    ])
-    .then((out) => (out ? parseFileHistory(out) : []))
-    .catch(() => []);
+  const log = (args: string[]) => reader.tryRun([
+    '--literal-pathspecs', 'log', ...(isDirectory ? [] : ['--follow']), ...args, '--', pathspec,
+  ]);
+  const historyOut = await log([
+    `-n${limit}`, '--no-color', '--numstat', '-z', '--format=%x01%H%x1f%h%x1f%an%x1f%aI%x1f%s',
+  ]);
+  const history = historyOut ? parseFileHistory(historyOut) : [];
 
   base.history = history;
   base.lastCommit = history[0] ?? null;
@@ -196,27 +197,11 @@ export async function getFileDetail(
 
   if (history.length > 0) {
     // `rev-list --count` has no --follow support, so use log to include pre-rename history.
-    const countOut = await reader.tryRun([
-      '--literal-pathspecs',
-      'log',
-      '--follow',
-      '--format=%H',
-      'HEAD',
-      '--',
-      safePath,
+    const [countOut, recentOut] = await Promise.all([
+      log(['--format=%H', 'HEAD']),
+      log(['--since=30 days ago', '--format=%H', 'HEAD']),
     ]);
     base.commitCount = countOut === null ? null : countOut.split('\n').filter(Boolean).length;
-
-    const recentOut = await reader.tryRun([
-      '--literal-pathspecs',
-      'log',
-      '--follow',
-      '--since=30 days ago',
-      '--format=%H',
-      'HEAD',
-      '--',
-      safePath,
-    ]);
     base.commits30d = recentOut === null ? null : recentOut.split('\n').filter(Boolean).length;
   } else if (!base.tracked) {
     base.note = base.note ?? '还没有提交过，git 这边没有任何历史';

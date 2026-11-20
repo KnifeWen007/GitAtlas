@@ -212,11 +212,11 @@ async function createWindow() {
 }
 
 /* 系统目录选择器：桌面端"零命令行"的支点 */
-ipcMain.handle('gitatlas:pick-directory', async () => {
+ipcMain.handle('gitatlas:pick-directory', async (_event, language) => {
   if (!mainWindow) return null;
   const result = await dialog.showOpenDialog(mainWindow, {
-    title: '选择 Git 仓库目录',
-    buttonLabel: '加入 GitAtlas',
+    title: language === 'en' ? 'Choose a Git repository folder' : '选择 Git 仓库目录',
+    buttonLabel: language === 'en' ? 'Add to GitAtlas' : '加入 GitAtlas',
     properties: ['openDirectory'],
   });
   if (result.canceled || result.filePaths.length === 0) return null;
@@ -246,6 +246,16 @@ ipcMain.handle('gitatlas:reveal-path', async (_event, filePath) => {
 
 /* 配色：读写 userData/theme.json，同时把窗口底色跟着换，切浅色时不会留一圈黑边 */
 ipcMain.handle('gitatlas:theme-read', () => readTheme());
+
+ipcMain.handle('gitatlas:language-read', async () => {
+  return fs.promises.readFile(path.join(app.getPath('userData'), 'language'), 'utf8').catch(() => null);
+});
+
+ipcMain.handle('gitatlas:language-write', (_event, language) => {
+  if (language !== 'en' && language !== 'zh-CN') return;
+  fs.mkdirSync(app.getPath('userData'), { recursive: true });
+  fs.writeFileSync(path.join(app.getPath('userData'), 'language'), language, 'utf8');
+});
 
 ipcMain.handle('gitatlas:theme-write', (_event, settings) => {
   const result = writeTheme(settings);

@@ -1,3 +1,4 @@
+import { useTranslation } from '../i18n.ts';
 import type { RefRecord } from '../api.ts';
 import { formatRelative } from '../format.ts';
 
@@ -8,6 +9,7 @@ interface RefListProps {
 }
 
 function RefRow({ item, onFocus }: { item: RefRecord; onFocus?: (ref: string) => void }) {
+  const { t } = useTranslation();
   const clickable = item.kind === 'branch' && Boolean(onFocus);
   return (
     <div
@@ -24,7 +26,7 @@ function RefRow({ item, onFocus }: { item: RefRecord; onFocus?: (ref: string) =>
           onFocus?.(item.shortName);
         }
       }}
-      title={clickable ? `在提交图谱里只看 ${item.shortName}` : item.name}
+      title={clickable ? t("在提交图谱里只看 {0}", item.shortName) : item.name}
     >
       <div className="ref-name">
         <span className={`ref-icon ${item.kind}`} />
@@ -38,13 +40,14 @@ function RefRow({ item, onFocus }: { item: RefRecord; onFocus?: (ref: string) =>
           </span>
         ) : null}
         <span>{formatRelative(item.lastCommitAt)}</span>
-        {clickable ? <span className="ref-go">看图 →</span> : null}
+        {clickable ? <span className="ref-go">{t("看图 →")}</span> : null}
       </div>
     </div>
   );
 }
 
 export function RefList({ refs, onFocus }: RefListProps) {
+  const { t } = useTranslation();
   const branches = refs
     .filter((r) => r.kind === 'branch')
     // 当前分支永远排第一，其余按名字
@@ -53,7 +56,7 @@ export function RefList({ refs, onFocus }: RefListProps) {
   const remotes = refs.filter((r) => r.kind === 'remote');
 
   if (refs.length === 0) {
-    return <div className="empty-desc">没有分支或标签</div>;
+    return <div className="empty-desc">{t("没有分支或标签")}</div>;
   }
 
   return (
@@ -65,12 +68,12 @@ export function RefList({ refs, onFocus }: RefListProps) {
       {remotes.length > 0 ? (
         <details className="ref-group">
           <summary className="ref-group-head">
-            远端分支<span className="ref-group-count">{remotes.length}</span>
+            {t("远端分支")}<span className="ref-group-count">{remotes.length}</span>
           </summary>
           {remotes.slice(0, 40).map((record) => (
             <RefRow key={record.name} item={record} />
           ))}
-          {remotes.length > 40 ? <div className="ref-more">还有 {remotes.length - 40} 个未显示</div> : null}
+          {remotes.length > 40 ? <div className="ref-more">{t("还有")} {remotes.length - 40} {t("个未显示")}</div> : null}
         </details>
       ) : null}
 
@@ -81,7 +84,7 @@ export function RefList({ refs, onFocus }: RefListProps) {
       {tags.length > 0 ? (
         <div className="ref-group">
           <div className="ref-group-head is-static">
-            标签<span className="ref-group-count">{tags.length}</span>
+            {t("标签")}<span className="ref-group-count">{tags.length}</span>
           </div>
           <div className="ref-chips">
             {tags.map((record) => (

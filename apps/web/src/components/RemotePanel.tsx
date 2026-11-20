@@ -1,3 +1,4 @@
+import { useTranslation } from '../i18n.ts';
 import { useState } from 'react';
 import type { GitActionBody, RemoteInfo } from '../api.ts';
 import { webUrlOf } from '../format.ts';
@@ -16,6 +17,7 @@ function shorten(url: string): string {
 }
 
 export function RemotePanel({ remotes, busy, onRun }: RemotePanelProps) {
+  const { t } = useTranslation();
   const [editing, setEditing] = useState<string | null>(null);
   const [urlDraft, setUrlDraft] = useState('');
   const [newName, setNewName] = useState(remotes.length === 0 ? 'origin' : '');
@@ -36,7 +38,7 @@ export function RemotePanel({ remotes, busy, onRun }: RemotePanelProps) {
   return (
     <>
       {remotes.length === 0 ? (
-        <div className="empty-desc">还没有远端。填个地址，之后就能拉取和推送。</div>
+        <div className="empty-desc">{t("还没有远端。填个地址，之后就能拉取和推送。")}</div>
       ) : null}
 
       {remotes.map((remote) => {
@@ -47,12 +49,12 @@ export function RemotePanel({ remotes, busy, onRun }: RemotePanelProps) {
             <div className="op-file">
               <code className="op-code">{remote.name}</code>
               {web ? (
-                <a className="remote-link" href={web} target="_blank" rel="noreferrer" title={`在浏览器打开 ${web}`}>
+                <a className="remote-link" href={web} target="_blank" rel="noreferrer" title={t("在浏览器打开 {0}", web)}>
                   {shorten(remote.fetchUrl)}
                 </a>
               ) : (
                 <span className="op-path" title={remote.fetchUrl}>
-                  {remote.fetchUrl || '（本地路径）'}
+                  {remote.fetchUrl || t("（本地路径）")}
                 </span>
               )}
               <div className="op-file-actions">
@@ -64,10 +66,10 @@ export function RemotePanel({ remotes, busy, onRun }: RemotePanelProps) {
                     setUrlDraft(remote.fetchUrl);
                   }}
                 >
-                  {isEditing ? '取消' : '改地址'}
+                  {isEditing ? t("取消") : t("改地址")}
                 </button>
                 <button className="btn btn-xs btn-ghost" disabled={busy} onClick={() => void copy(remote.fetchUrl)}>
-                  {copied === remote.fetchUrl ? '已复制' : '复制'}
+                  {copied === remote.fetchUrl ? t("已复制") : t("复制")}
                 </button>
                 {confirmRemove === remote.name ? (
                   <button
@@ -78,7 +80,7 @@ export function RemotePanel({ remotes, busy, onRun }: RemotePanelProps) {
                       setConfirmRemove(null);
                     }}
                   >
-                    确认移除
+                    {t("确认移除")}
                   </button>
                 ) : (
                   <button
@@ -86,7 +88,7 @@ export function RemotePanel({ remotes, busy, onRun }: RemotePanelProps) {
                     disabled={busy}
                     onClick={() => setConfirmRemove(remote.name)}
                   >
-                    移除
+                    {t("移除")}
                   </button>
                 )}
               </div>
@@ -98,7 +100,7 @@ export function RemotePanel({ remotes, busy, onRun }: RemotePanelProps) {
                   className="op-input op-input-wide"
                   value={urlDraft}
                   onChange={(event) => setUrlDraft(event.target.value)}
-                  placeholder="https://github.com/用户/仓库.git 或 git@github.com:用户/仓库.git"
+                  placeholder={t("https://github.com/用户/仓库.git 或 git@github.com:用户/仓库.git")}
                   disabled={busy}
                   autoFocus
                 />
@@ -110,7 +112,7 @@ export function RemotePanel({ remotes, busy, onRun }: RemotePanelProps) {
                     setEditing(null);
                   }}
                 >
-                  保存地址
+                  {t("保存地址")}
                 </button>
               </div>
             ) : null}
@@ -121,14 +123,14 @@ export function RemotePanel({ remotes, busy, onRun }: RemotePanelProps) {
       <div className="op-buttons remote-add">
         <input
           className="op-input remote-name"
-          placeholder="远端名"
+          placeholder={t("远端名")}
           value={newName}
           onChange={(event) => setNewName(event.target.value)}
           disabled={busy}
         />
         <input
           className="op-input op-input-wide"
-          placeholder="https://… 或 git@…"
+          placeholder={t("https://… 或 git@…")}
           value={newUrl}
           onChange={(event) => setNewUrl(event.target.value)}
           disabled={busy}
@@ -142,7 +144,7 @@ export function RemotePanel({ remotes, busy, onRun }: RemotePanelProps) {
             setNewUrl('');
           }}
         >
-          添加远端
+          {t("添加远端")}
         </button>
       </div>
     </>

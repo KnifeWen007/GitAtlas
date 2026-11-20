@@ -1,3 +1,4 @@
+import { useTranslation } from '../i18n.ts';
 import { useEffect, useRef } from 'react';
 
 export interface ConfirmRequest {
@@ -22,6 +23,7 @@ interface ConfirmDialogProps {
  * 更重要的是危险操作要能把"影响什么"说清楚，窗口那一行小字做不到。
  */
 export function ConfirmDialog({ request, onCancel }: ConfirmDialogProps) {
+  const { t } = useTranslation();
   const cancelRef = useRef<HTMLButtonElement>(null);
   const confirmRef = useRef<HTMLButtonElement>(null);
 
@@ -54,7 +56,7 @@ export function ConfirmDialog({ request, onCancel }: ConfirmDialogProps) {
         </div>
         <div className="dialog-foot">
           <button ref={cancelRef} className="btn btn-ghost" onClick={onCancel}>
-            取消
+            {t("取消")}
           </button>
           <button
             ref={confirmRef}
@@ -64,7 +66,7 @@ export function ConfirmDialog({ request, onCancel }: ConfirmDialogProps) {
               onCancel();
             }}
           >
-            {request.confirmLabel ?? '确定'}
+            {request.confirmLabel ?? t("确定")}
           </button>
         </div>
       </div>

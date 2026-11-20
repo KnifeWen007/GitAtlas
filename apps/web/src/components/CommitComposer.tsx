@@ -1,3 +1,4 @@
+import { useTranslation } from '../i18n.ts';
 import { useMemo, useState } from 'react';
 import type { GitActionBody, RepoStatus } from '../api.ts';
 import {
@@ -20,6 +21,7 @@ interface CommitComposerProps {
  * 规范不是靠提醒，是靠入口——把类型做成必选项，顺手就写对了。
  */
 export function CommitComposer({ status, busy, onRun }: CommitComposerProps) {
+  const { t } = useTranslation();
   const stagedCount = status.staged.length;
   const allCount = status.staged.length + status.unstaged.length + status.untracked.length;
 
@@ -48,7 +50,7 @@ export function CommitComposer({ status, busy, onRun }: CommitComposerProps) {
 
   return (
     <div className="commit-box">
-      <div className="commit-types" role="radiogroup" aria-label="提交类型">
+      <div className="commit-types" role="radiogroup" aria-label={t("提交类型")}>
         {COMMIT_TYPES.map((item) => (
           <button
             key={item.type}
@@ -56,7 +58,7 @@ export function CommitComposer({ status, busy, onRun }: CommitComposerProps) {
             role="radio"
             aria-checked={type === item.type}
             className={`ctype-pick ctype-${item.type} ${type === item.type ? 'is-on' : ''}`}
-            title={item.hint}
+            title={t(item.hint)}
             disabled={busy}
             onClick={() => setType(item.type)}
           >
@@ -70,26 +72,26 @@ export function CommitComposer({ status, busy, onRun }: CommitComposerProps) {
         <span className="commit-paren">(</span>
         <input
           className="commit-scope"
-          placeholder="范围"
+          placeholder={t("范围")}
           value={scope}
           onChange={(event) => setScope(event.target.value)}
           disabled={busy}
-          aria-label="影响范围"
+          aria-label={t("影响范围")}
         />
         <span className="commit-paren">)</span>
         <span className="commit-colon">:</span>
         <input
           className="op-input commit-subject"
-          placeholder="一句话说清这次改了什么"
+          placeholder={t("一句话说清这次改了什么")}
           value={subject}
           onChange={(event) => setSubject(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === 'Enter' && !event.nativeEvent.isComposing) submit();
           }}
           disabled={busy}
-          aria-label="提交标题"
+          aria-label={t("提交标题")}
         />
-        <label className="commit-break" title="不兼容的改动，标题后面会多一个感叹号">
+        <label className="commit-break" title={t("不兼容的改动，标题后面会多一个感叹号")}>
           <input
             type="checkbox"
             checked={breaking}
@@ -102,13 +104,13 @@ export function CommitComposer({ status, busy, onRun }: CommitComposerProps) {
 
       <div className="commit-preview">
         <code className={preview ? `ctype-${preview.type}` : ''}>{message || 'feat: …'}</code>
-        {tooLong ? <span className="commit-warn">标题超过 72 字，历史里会被截断</span> : null}
+        {tooLong ? <span className="commit-warn">{t("标题超过 72 字，历史里会被截断")}</span> : null}
       </div>
 
       {more ? (
         <textarea
           className="op-input commit-body"
-          placeholder="补充说明：为什么改、影响什么、怎么迁移（可选）"
+          placeholder={t("补充说明：为什么改、影响什么、怎么迁移（可选）")}
           value={body}
           onChange={(event) => setBody(event.target.value)}
           disabled={busy}
@@ -118,7 +120,7 @@ export function CommitComposer({ status, busy, onRun }: CommitComposerProps) {
 
       <div className="commit-actions">
         <button className="btn btn-xs btn-ghost" type="button" onClick={() => setMore((value) => !value)}>
-          {more ? '收起正文' : '加正文'}
+          {more ? t("收起正文") : t("加正文")}
         </button>
         <div className="commit-mode">
           <label className={stagedCount === 0 ? 'is-dim' : ''}>
@@ -129,7 +131,7 @@ export function CommitComposer({ status, busy, onRun }: CommitComposerProps) {
               onChange={() => setIncludeAll(false)}
               disabled={busy || stagedCount === 0}
             />
-            只提交已暂存（{stagedCount}）
+            {t("只提交已暂存（")}{stagedCount}）
           </label>
           <label>
             <input
@@ -139,21 +141,21 @@ export function CommitComposer({ status, busy, onRun }: CommitComposerProps) {
               onChange={() => setIncludeAll(true)}
               disabled={busy || allCount === 0}
             />
-            提交全部改动（{allCount}）
+            {t("提交全部改动（")}{allCount}）
           </label>
         </div>
         <button className="btn btn-sm btn-accent commit-submit" type="button" disabled={busy || !ready} onClick={submit}>
-          按规范提交
+          {t("按规范提交")}
         </button>
       </div>
 
       {!ready ? (
         <div className="commit-hint">
           {subject.trim().length === 0
-            ? '先填一句标题，标题会原样出现在图谱上'
+            ? t("先填一句标题，标题会原样出现在图谱上")
             : includeAll
-              ? '工作区没有可提交的改动'
-              : '暂存区是空的：先在上面的文件上点「暂存」，或者改成提交全部改动'}
+              ? t("工作区没有可提交的改动")
+              : t("暂存区是空的：先在上面的文件上点「暂存」，或者改成提交全部改动")}
         </div>
       ) : null}
     </div>

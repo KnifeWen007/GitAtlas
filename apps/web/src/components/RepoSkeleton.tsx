@@ -1,8 +1,10 @@
+import { useTranslation } from '../i18n.ts';
 /**
  * 首屏骨架：形状照着真实布局走（页头 → 统计卡 → 操作台 → 图谱），
  * 数据回来时只是把灰块换成内容，不会整页跳一下。
  */
-export function RepoSkeleton({ label = '正在加载仓库数据…' }: { label?: string }) {
+export function RepoSkeleton({ label }: { label?: string }) {
+  const { t } = useTranslation();
   return (
     <div className="skel-page" aria-busy="true">
       <div className="skel-header">
@@ -46,7 +48,7 @@ export function RepoSkeleton({ label = '正在加载仓库数据…' }: { label?
         </div>
       </div>
 
-      <div className="skel-caption">{label}</div>
+      <div className="skel-caption">{label ?? t('正在加载仓库数据…')}</div>
     </div>
   );
 }

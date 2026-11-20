@@ -1,3 +1,4 @@
+import { useTranslation } from '../i18n.ts';
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
 
 export interface SelectOption {
@@ -34,6 +35,7 @@ export function SelectMenu({
   ariaLabel,
   className = '',
 }: SelectMenuProps) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -113,7 +115,7 @@ export function SelectMenu({
 
       {open ? (
         <div className={`sel-pop ${align === 'right' ? 'is-right' : ''}`} role="listbox" id={listId} ref={listRef}>
-          {options.length === 0 ? <div className="sel-empty">没有可选项</div> : null}
+          {options.length === 0 ? <div className="sel-empty">{t("没有可选项")}</div> : null}
           {options.map((option, index) => (
             <button
               key={option.value || `empty-${index}`}
