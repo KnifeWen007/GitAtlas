@@ -1,6 +1,7 @@
 {
   "name": "@gitatlas/desktop",
   "version": "0.1.0",
+  "license": "MIT",
   "private": true,
   "description": "GitAtlas 桌面端（Electron 外壳）",
   "main": "main.cjs",
@@ -29,6 +30,12 @@
       "en-US"
     ],
     "npmRebuild": false,
+    "extraResources": [
+      {
+        "from": "../../LICENSE",
+        "to": "LICENSE"
+      }
+    ],
     "files": [
       "main.cjs",
       "preload.cjs",
