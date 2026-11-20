@@ -27,6 +27,7 @@ import { RepoSkeleton } from './components/RepoSkeleton.tsx';
 import { SelectMenu } from './components/SelectMenu.tsx';
 import { StatCard } from './components/StatCard.tsx';
 import { ThemePanel } from './components/ThemePanel.tsx';
+import { WorkspacePanel } from './components/WorkspacePanel.tsx';
 import { Toasts, type ToastItem } from './components/Toasts.tsx';
 import { formatDate, formatNumber, formatRelative, webUrlOf, weeklyBuckets } from './format.ts';
 import {
@@ -452,6 +453,8 @@ export function App({ initialTheme }: { initialTheme?: ThemeSettings } = {}) {
         ) : (
           <RepoView
             detail={detail}
+            repoId={detail.summary.repoId}
+            workspaceRefreshKey={reloadKey}
             busy={busy}
             refreshing={loadingDetail}
             onReindex={() => void handleReindex()}
@@ -506,6 +509,8 @@ export function App({ initialTheme }: { initialTheme?: ThemeSettings } = {}) {
 
 interface RepoViewProps {
   detail: RepoDetail;
+  repoId: number;
+  workspaceRefreshKey: number;
   busy: boolean;
   refreshing: boolean;
   lastIndexed: string | null;
@@ -529,6 +534,8 @@ interface RepoViewProps {
 
 function RepoView({
   detail,
+  repoId,
+  workspaceRefreshKey,
   busy,
   refreshing,
   lastIndexed,
@@ -673,6 +680,15 @@ function RepoView({
         onRefresh={onRefreshStatus}
         onOpenDiff={(path, staged) => onInspect({ kind: 'working', path, staged })}
         onEditConflict={(path) => onInspect({ kind: 'conflict', path })}
+      />
+
+      <WorkspacePanel
+        key={repoId}
+        repoId={repoId}
+        refreshKey={workspaceRefreshKey}
+        onOpenDiff={(path, staged) => onInspect({ kind: 'working', path, staged })}
+        onEditConflict={(path) => onInspect({ kind: 'conflict', path })}
+        onRefresh={onRefreshStatus}
       />
 
       <div className="card">

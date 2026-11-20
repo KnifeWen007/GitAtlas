@@ -15,6 +15,19 @@ export type { DiffLine, DiffLineKind, FileDiff, FileChangeStatus, CommitFile } f
 export { readWorkingFile, writeWorkingFile, countConflictMarkers } from './git/file.ts';
 export { listReachable } from './git/repo.ts';
 export type { WorkingFileContent } from './git/file.ts';
+export { listWorkingTree } from './git/tree.ts';
+export type { TreeEntry, TreeListing, TreeState } from './git/tree.ts';
+export {
+  parseIgnore,
+  readIgnoreFile,
+  writeIgnoreFile,
+  addIgnoreRule,
+  removeIgnoreRule,
+  checkIgnore,
+} from './git/ignore.ts';
+export type { IgnoreRule, IgnoreFile, IgnoreMatch } from './git/ignore.ts';
+export { getFileDetail, parseFileHistory } from './git/inspect.ts';
+export type { FileDetail, FileCommit } from './git/inspect.ts';
 export { Store, SCHEMA_VERSION } from './store/db.ts';
 export {
   listRepos,

@@ -51,11 +51,12 @@ export class GitReader {
   }
 
   /** 执行并收集全部 stdout；非零退出抛 GitError。传 timeoutMs 可防网络操作挂死窗口 */
-  async run(args: string[], timeoutMs?: number): Promise<string> {
+  async run(args: string[], timeoutMs?: number, stdin?: string): Promise<string> {
     const child = this.spawnGit(args);
     const out: Buffer[] = [];
     const err: Buffer[] = [];
 
+    if (stdin !== undefined) child.stdin.end(stdin);
     child.stdout.on('data', (chunk: Buffer) => out.push(chunk));
     child.stderr.on('data', (chunk: Buffer) => err.push(chunk));
 
@@ -93,10 +94,10 @@ export class GitReader {
     return Buffer.concat(out).toString('utf8');
   }
 
-  /** 执行成功返回 true，失败返回 false（不抛错） */
-  async tryRun(args: string[]): Promise<string | null> {
+  /** 执行成功返回 stdout；失败返回 null（不抛错） */
+  async tryRun(args: string[], stdin?: string): Promise<string | null> {
     try {
-      return await this.run(args);
+      return await this.run(args, undefined, stdin);
     } catch {
       return null;
     }

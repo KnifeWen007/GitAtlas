@@ -277,6 +277,86 @@ export interface CommitFile {
   binary: boolean;
 }
 
+/** 工作目录树里的一个节点来源 */
+export type TreeState = 'tracked' | 'untracked' | 'ignored';
+
+export interface TreeEntry {
+  path: string;
+  state: TreeState;
+  change: ChangeKind | null;
+  /** 是否有已暂存的改动 */
+  staged: boolean;
+  /** 是否有未暂存的改动 */
+  unstaged: boolean;
+  /** 文件字节数；目录或超出预算时为 null */
+  size: number | null;
+  directory: boolean;
+}
+
+export interface TreeListing {
+  entries: TreeEntry[];
+  truncated: boolean;
+  total: number;
+  counts: { tracked: number; untracked: number; ignored: number; changed: number };
+  hasGitignore: boolean;
+}
+
+export interface IgnoreRule {
+  line: number;
+  raw: string;
+  pattern: string;
+  negated: boolean;
+  comment: boolean;
+  blank: boolean;
+}
+
+export interface IgnoreFile {
+  path: string;
+  exists: boolean;
+  text: string;
+  rules: IgnoreRule[];
+  activeCount: number;
+}
+
+/** 一条路径最终被哪条规则命中 */
+export interface IgnoreMatch {
+  source: string;
+  line: number;
+  pattern: string;
+  path: string;
+}
+
+export interface FileCommit {
+  sha: string;
+  shortSha: string;
+  subject: string;
+  authorName: string;
+  authoredAt: string;
+  insertions: number;
+  deletions: number;
+}
+
+export interface FileDetail {
+  path: string;
+  name: string;
+  dir: string;
+  exists: boolean;
+  isDirectory: boolean;
+  size: number | null;
+  mtime: string | null;
+  binary: boolean;
+  lines: number | null;
+  tracked: boolean;
+  ignored: boolean;
+  ignore: IgnoreMatch | null;
+  lastCommit: FileCommit | null;
+  commitCount: number | null;
+  commits30d: number | null;
+  churn: { insertions: number; deletions: number };
+  history: FileCommit[];
+  note: string | null;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   // 只有真正带 body 时才声明 JSON，否则 Fastify 会以「空的 JSON 体」拒绝
   const headers: Record<string, string> = { ...((init?.headers as Record<string, string>) ?? {}) };
@@ -344,4 +424,23 @@ export const api = {
   reindex: (id: number) => request<{ taskId: string }>(`/api/repos/${id}/reindex`, { method: 'POST' }),
   remove: (id: number) => request<{ ok: boolean }>(`/api/repos/${id}`, { method: 'DELETE' }),
   task: (id: string) => request<TaskResponse>(`/api/tasks/${id}`),
+  tree: (id: number, includeIgnored = false) =>
+    request<TreeListing>(`/api/repos/${id}/tree?ignored=${includeIgnored ? '1' : '0'}`),
+  fileDetail: (id: number, path: string) =>
+    request<FileDetail>(`/api/repos/${id}/file-detail?path=${encodeURIComponent(path)}`),
+  ignore: (id: number) => request<IgnoreFile>(`/api/repos/${id}/ignore`),
+  saveIgnore: (id: number, text: string) =>
+    request<{ ok: boolean; path: string; bytes: number; lineCount: number }>(`/api/repos/${id}/ignore`, {
+      method: 'PUT',
+      body: JSON.stringify({ text }),
+    }),
+  addIgnore: (id: number, pattern: string) =>
+    request<{ file: IgnoreFile; added: boolean }>(`/api/repos/${id}/ignore`, {
+      method: 'POST',
+      body: JSON.stringify({ pattern }),
+    }),
+  removeIgnore: (id: number, line: number) =>
+    request<IgnoreFile>(`/api/repos/${id}/ignore?line=${line}`, { method: 'DELETE' }),
+  checkIgnore: (id: number, path: string) =>
+    request<{ match: IgnoreMatch | null }>(`/api/repos/${id}/ignore/check?path=${encodeURIComponent(path)}`),
 };

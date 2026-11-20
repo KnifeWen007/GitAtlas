@@ -52,6 +52,13 @@ import {
   countConflictMarkers,
   listReachable,
   aheadBehind,
+  listWorkingTree,
+  getFileDetail,
+  readIgnoreFile,
+  writeIgnoreFile,
+  addIgnoreRule,
+  removeIgnoreRule,
+  checkIgnore,
   type IndexProgress,
   type OpResult,
 } from '@gitatlas/core';
@@ -521,6 +528,130 @@ export async function startServer(options: ServerOptions): Promise<ServerHandle>
       }
     },
   );
+  /** 工作目录树：已跟踪 + 未跟踪，勾上 ignored 连被忽略的也列出来 */
+  app.get<{ Params: { id: string }; Querystring: { ignored?: string; size?: string } }>(
+    '/api/repos/:id/tree',
+    async (request, reply) => {
+      const id = Number(request.params.id);
+      if (!Number.isFinite(id)) return reply.code(400).send({ error: 'id 无效' });
+      const repo = getRepo(store, id);
+      if (!repo) return reply.code(404).send({ error: '仓库不存在' });
+      try {
+        return await listWorkingTree(gitPath, repo.path, {
+          includeIgnored: request.query.ignored === '1',
+          withSize: request.query.size !== '0',
+        });
+      } catch (error) {
+        return reply.code(400).send({ error: explainGitFailure(error) });
+      }
+    },
+  );
+
+  /** 单文件详情：大小、行数、跟踪/忽略状态、改过它的人和次数 */
+  app.get<{ Params: { id: string }; Querystring: { path?: string; limit?: string } }>(
+    '/api/repos/:id/file-detail',
+    async (request, reply) => {
+      const id = Number(request.params.id);
+      if (!Number.isFinite(id)) return reply.code(400).send({ error: 'id 无效' });
+      const repo = getRepo(store, id);
+      if (!repo) return reply.code(404).send({ error: '仓库不存在' });
+      const filePath = request.query.path?.trim();
+      if (!filePath) return reply.code(400).send({ error: '请指定文件路径' });
+      const limit = Number(request.query.limit);
+      try {
+        return await getFileDetail(gitPath, repo.path, filePath, {
+          ...(Number.isFinite(limit) && limit > 0 ? { historyLimit: Math.min(limit, 100) } : {}),
+        });
+      } catch (error) {
+        return reply.code(400).send({ error: explainGitFailure(error) });
+      }
+    },
+  );
+
+  /** .gitignore 全文与逐行规则 */
+  app.get<{ Params: { id: string } }>('/api/repos/:id/ignore', async (request, reply) => {
+    const id = Number(request.params.id);
+    if (!Number.isFinite(id)) return reply.code(400).send({ error: 'id 无效' });
+    const repo = getRepo(store, id);
+    if (!repo) return reply.code(404).send({ error: '仓库不存在' });
+    try {
+      return await readIgnoreFile(repo.path);
+    } catch (error) {
+      return reply.code(400).send({ error: explainGitFailure(error) });
+    }
+  });
+
+  /** 整份覆盖写回 .gitignore */
+  app.put<{ Params: { id: string }; Body: { text?: string } }>(
+    '/api/repos/:id/ignore',
+    async (request, reply) => {
+      const id = Number(request.params.id);
+      if (!Number.isFinite(id)) return reply.code(400).send({ error: 'id 无效' });
+      const repo = getRepo(store, id);
+      if (!repo) return reply.code(404).send({ error: '仓库不存在' });
+      if (typeof request.body?.text !== 'string') return reply.code(400).send({ error: '缺少文件内容' });
+      try {
+        return await writeIgnoreFile(repo.path, request.body.text);
+      } catch (error) {
+        return reply.code(400).send({ error: explainGitFailure(error) });
+      }
+    },
+  );
+
+  /** 追加一条规则；已经存在的不会重复写 */
+  app.post<{ Params: { id: string }; Body: { pattern?: string } }>(
+    '/api/repos/:id/ignore',
+    async (request, reply) => {
+      const id = Number(request.params.id);
+      if (!Number.isFinite(id)) return reply.code(400).send({ error: 'id 无效' });
+      const repo = getRepo(store, id);
+      if (!repo) return reply.code(404).send({ error: '仓库不存在' });
+      const pattern = request.body?.pattern?.trim();
+      if (!pattern) return reply.code(400).send({ error: '请给一条忽略规则' });
+      try {
+        return await addIgnoreRule(repo.path, pattern);
+      } catch (error) {
+        return reply.code(400).send({ error: explainGitFailure(error) });
+      }
+    },
+  );
+
+  /** 按行号删掉一条规则 */
+  app.delete<{ Params: { id: string }; Querystring: { line?: string } }>(
+    '/api/repos/:id/ignore',
+    async (request, reply) => {
+      const id = Number(request.params.id);
+      if (!Number.isFinite(id)) return reply.code(400).send({ error: 'id 无效' });
+      const repo = getRepo(store, id);
+      if (!repo) return reply.code(404).send({ error: '仓库不存在' });
+      const line = Number(request.query.line);
+      if (!Number.isInteger(line)) return reply.code(400).send({ error: '行号无效' });
+      try {
+        return await removeIgnoreRule(repo.path, line);
+      } catch (error) {
+        return reply.code(400).send({ error: explainGitFailure(error) });
+      }
+    },
+  );
+
+  /** 这条路径被哪条规则挡住了 */
+  app.get<{ Params: { id: string }; Querystring: { path?: string } }>(
+    '/api/repos/:id/ignore/check',
+    async (request, reply) => {
+      const id = Number(request.params.id);
+      if (!Number.isFinite(id)) return reply.code(400).send({ error: 'id 无效' });
+      const repo = getRepo(store, id);
+      if (!repo) return reply.code(404).send({ error: '仓库不存在' });
+      const filePath = request.query.path?.trim();
+      if (!filePath) return reply.code(400).send({ error: '请指定文件路径' });
+      try {
+        return { match: await checkIgnore(gitPath, repo.path, filePath) };
+      } catch (error) {
+        return reply.code(400).send({ error: explainGitFailure(error) });
+      }
+    },
+  );
+
   /** 某次提交里单个文件的差异 */
   app.get<{ Params: { id: string; sha: string }; Querystring: { path?: string; oldPath?: string } }>(
     '/api/repos/:id/commits/:sha/diff',
