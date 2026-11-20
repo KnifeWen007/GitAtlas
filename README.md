@@ -34,7 +34,9 @@ GitAtlas 是一个面向本地 Git 仓库的可视化工具。添加仓库后，
 | Windows x64 产物 | 运行方式 | 索引数据位置 |
 | --- | --- | --- |
 | `GitAtlas-Portable-<版本>.exe` | 直接运行 | 可执行文件旁的 `data/` |
-| `GitAtlas-Setup-<版本>.exe` | 运行安装程序 | `%APPDATA%\GitAtlas\data\` |
+| `GitAtlas-WebSetup-<版本>.exe` | 运行安装程序 | `%APPDATA%\GitAtlas\data\` |
+
+安装包是在线安装器：本身只有 1 MB 左右，运行时从发布页下载 `GitAtlas-Web-<版本>-x64.nsis.7z`（约 108 MB）再安装，所以安装过程中需要联网。没有网络或内网环境请直接用便携版，或者按下面的命令自己出一个离线安装包。
 
 当前可从源码构建 Windows 桌面版，产物位于 `release/`。公开版本会列在发布页。[GitHub Releases](https://github.com/KnifeWen007/GitAtlas/releases)
 
@@ -59,8 +61,9 @@ pnpm dev:web     # Vite · 127.0.0.1:5317
 在 Windows 上从源码构建桌面版。
 
 ```sh
-pnpm build:desktop:dir   # 生成 release/win-unpacked/
-pnpm build:desktop       # 生成便携版和安装包
+pnpm build:desktop:dir     # 生成 release/win-unpacked/
+pnpm build:desktop         # 生成便携版和在线安装器（release/nsis-web/）
+pnpm build:desktop:offline # 生成自带运行时的离线安装包
 ```
 
 ## 功能

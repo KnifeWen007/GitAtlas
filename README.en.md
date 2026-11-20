@@ -34,7 +34,9 @@ The desktop build adds repositories through a native folder picker. Install [Git
 | Windows x64 artifact | How to run it | Where the index is stored |
 | --- | --- | --- |
 | `GitAtlas-Portable-<version>.exe` | Run it directly | `data/` next to the executable |
-| `GitAtlas-Setup-<version>.exe` | Run the installer | `%APPDATA%\GitAtlas\data\` |
+| `GitAtlas-WebSetup-<version>.exe` | Run the installer | `%APPDATA%\GitAtlas\data\` |
+
+The installer is a web installer: it is about 1 MB and downloads `GitAtlas-Web-<version>-x64.nsis.7z` (roughly 108 MB) from the releases page before installing, so it needs a network connection. On an offline or intranet machine, use the portable build, or build an offline installer with the command below.
 
 You can build the desktop app from source today; the artifacts land in `release/`. Published builds are listed on the [releases page](https://github.com/KnifeWen007/GitAtlas/releases).
 
@@ -59,8 +61,9 @@ pnpm dev:web     # Vite · 127.0.0.1:5317
 Build the desktop app from source on Windows.
 
 ```sh
-pnpm build:desktop:dir   # writes release/win-unpacked/
-pnpm build:desktop       # writes the portable build and the installer
+pnpm build:desktop:dir     # writes release/win-unpacked/
+pnpm build:desktop         # writes the portable build and the web installer (release/nsis-web/)
+pnpm build:desktop:offline # writes a self-contained offline installer
 ```
 
 ## Features

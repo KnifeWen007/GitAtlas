@@ -4,9 +4,14 @@
  *
  * 用法：
  *   node scripts/build-desktop.mjs --dir       只出未打包目录（最快，先验证）
- *   node scripts/build-desktop.mjs             出便携版 + 安装包
+ *   node scripts/build-desktop.mjs             出便携版 + 在线安装器（默认）
+ *   node scripts/build-desktop.mjs --offline   安装包改成自带的离线安装包（约 109 MB）
  *   node scripts/build-desktop.mjs --portable  只出便携版
+ *   node scripts/build-desktop.mjs --nsis      只出离线安装包
  *   node scripts/build-desktop.mjs --level 6   调 7z 压缩级别（0-9，默认 4）
+ *
+ * 在线安装器（nsis-web）：setup 只有 0.8 MB 左右，内容另出一个 .nsis.7z，
+ * 安装时按 setup 里编好的地址去 Release 下载。两个文件必须一起发布。
  *
  * 两个必须遵守的约束（踩过，别改）：
  *
@@ -31,6 +36,23 @@ const DESKTOP = path.join(ROOT, 'apps', 'desktop');
 const WEB = path.join(ROOT, 'apps', 'web');
 const BUILD = path.join(DESKTOP, 'build');
 const OUT = path.join(ROOT, 'release');
+
+const ROOT_PKG = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+
+/** 仓库主页地址，用于拼 Release 资源链接（build 时的在线安装器要写进 setup） */
+function githubRepoUrl() {
+  const raw = typeof ROOT_PKG.repository === 'string' ? ROOT_PKG.repository : ROOT_PKG.repository?.url ?? '';
+  return raw.replace(/^git\+/, '').replace(/\.git$/, '').replace(/\/$/, '');
+}
+
+/** 在线安装器下载的包名；改这里要同时改发布时上传的文件名 */
+function webPackageName(version) {
+  return `GitAtlas-Web-${version}-x64.nsis.7z`;
+}
+
+function webPackagerUrl(version) {
+  return `${githubRepoUrl()}/releases/download/v${version}/${webPackageName(version)}`;
+}
 
 /* ---------------- 换真 node 重跑 ---------------- */
 if (process.versions.electron) {
@@ -102,8 +124,11 @@ const argv = process.argv.slice(2);
 const has = (...names) => names.some((n) => argv.includes(n));
 
 const dirOnly = has('--dir');
+// 默认在线安装器（setup 只是个下载器）；--offline / --nsis 才出自带运行时的离线安装包
+const wantOfflineInstaller = has('--offline') || has('--nsis');
+const installerKind = wantOfflineInstaller ? 'nsis' : 'nsis-web';
 const wantPortable = has('--portable') || (!dirOnly && !has('--nsis'));
-const wantNsis = has('--nsis') || (!dirOnly && !has('--portable'));
+const wantInstaller = !dirOnly && (wantOfflineInstaller || has('--web', '--nsis-web') || !has('--portable'));
 
 let level = '4';
 const li = argv.findIndex((a) => a === '--level' || /^--level=\d$/.test(a));
@@ -165,12 +190,18 @@ async function main() {
 
   const options = { projectDir: DESKTOP, config: pkg.build, publish: 'never' };
 
+  if (installerKind === 'nsis-web') {
+    // 在线安装器把下载地址编进 setup 里：这里按「仓库地址 + v版本号 + 固定文件名」拼出来，
+    // 打包完成后把 electron-builder 生成的那个包名（带 @gitatlas/desktop，很难看）改成同一个名字。
+    options.config = { ...pkg.build, nsisWeb: { ...(pkg.build.nsisWeb ?? {}), appPackageUrl: webPackagerUrl(pkg.version) } };
+  }
+
   if (dirOnly) {
     options.dir = true;
     console.log('打包模式：仅目录（release/win-unpacked，用于快速验证）');
   } else {
     const targets = [];
-    if (wantNsis) targets.push('nsis');
+    if (wantInstaller) targets.push(installerKind);
     if (wantPortable) targets.push('portable');
     options.targets = builder.Platform.WINDOWS.createTarget(targets, builder.Arch.x64);
     console.log(`打包模式：${targets.join(' + ')}（7z 级别 ${level}）`);
@@ -179,14 +210,21 @@ async function main() {
   const artifacts = await builder.build(options);
   step('electron-builder');
 
+  if (installerKind === 'nsis-web') renameWebArtifacts(artifacts, pkg.version);
+
   verifyAsar();
   step('asar 自检');
 
-  cleanIntermediates();
+  cleanIntermediates({ keepPackage: installerKind === 'nsis-web' });
 
   console.log('\n产物：');
   for (const f of artifacts) {
     console.log(`  ${path.basename(f)}  ${(fs.statSync(f).size / 1024 / 1024).toFixed(1)} MB`);
+  }
+
+  if (installerKind === 'nsis-web') {
+    console.log('\n在线安装器：setup 里只带下载地址，发布时把 .nsis.7z 和 setup 一起传到同一个 Release。');
+    console.log(`  下载地址：${webPackagerUrl(pkg.version)}`);
   }
 
   console.log('\n耗时：');
@@ -316,10 +354,29 @@ function verifyAsar() {
   console.log(`  asar 自检通过：${list.length} 个条目，主进程依赖齐全`);
 }
 
-function cleanIntermediates() {
+function renameWebArtifacts(artifacts, version) {
+  const wantedPackage = webPackageName(version);
+  const wantedSetup = `GitAtlas-WebSetup-${version}.exe`;
+  for (let i = 0; i < artifacts.length; i += 1) {
+    const file = artifacts[i];
+    const base = path.basename(file);
+    let next = null;
+    if (/\.nsis\.7z$/i.test(base)) next = wantedPackage;
+    else if (/^GitAtlas-Setup-.*\.exe$/i.test(base)) next = wantedSetup;
+    if (!next || base === next) continue;
+    const target = path.join(path.dirname(file), next);
+    fs.rmSync(target, { force: true });
+    fs.renameSync(file, target);
+    artifacts[i] = target;
+  }
+}
+
+function cleanIntermediates({ keepPackage = false } = {}) {
   if (!fs.existsSync(OUT)) return;
   for (const name of fs.readdirSync(OUT)) {
-    if (/\.nsis\.7z$/i.test(name) || /\.__uninstaller\.exe$/i.test(name)) {
+    // 在线安装器的 .nsis.7z 是发布产物本身，不能当中间文件删掉
+    const isPackage = /\.nsis\.7z$/i.test(name) && !keepPackage;
+    if (isPackage || /\.__uninstaller\.exe$/i.test(name)) {
       try {
         fs.unlinkSync(path.join(OUT, name));
       } catch {
