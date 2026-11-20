@@ -120,8 +120,11 @@ test('removeIgnoreRule 保留 CRLF 和原文件是否有末尾换行', async () 
 test('resolveInsideRepo 拒绝仓库外路径，但允许仓库内路径', async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'gitatlas-path-'));
   try {
+    // 函数返回的是 realpath 之后的绝对路径；Windows runner 的 TEMP 常是 8.3 短名
+    // （RUNNER~1），直接和 mkdtemp 的返回值比较会假失败，所以期望值也先取 realpath。
+    const canonicalRoot = await fs.realpath(root);
     const inside = await resolveInsideRepo(root, 'src/new.ts');
-    assert.equal(inside, path.join(root, 'src', 'new.ts'));
+    assert.equal(inside, path.join(canonicalRoot, 'src', 'new.ts'));
     await assert.rejects(resolveInsideRepo(root, '../outside.txt'), /越过了仓库目录/);
     await assert.rejects(resolveInsideRepo(root, '.git/config'), /Git 元数据/);
   } finally {
